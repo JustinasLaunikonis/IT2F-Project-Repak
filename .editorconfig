@@ -1,0 +1,19 @@
+# Use this file as the top-level formatting configuration for the repository.
+root = true
+
+# Keep text files consistent across editors and operating systems.
+[*]
+charset = utf-8
+indent_style = space
+indent_size = 4
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Preserve spaces that create intentional Markdown line breaks.
+[*.md]
+trim_trailing_whitespace = false
+
+# Use two spaces for these common configuration file formats.
+[*.{yml,yaml,json}]
+indent_size = 2
