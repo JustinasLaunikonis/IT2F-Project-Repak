@@ -1,5 +1,32 @@
 # IT2F Project Repak
 
+## Run the local application
+
+Install Python 3.10 or newer and make sure the `python` command is available in PowerShell
+
+Run these commands in PowerShell. Change the repository path if your clone is elsewhere.
+
+```powershell
+# Open your local repository folder.
+Set-Location "C:\Users\MSI\Desktop\IT2F-Project-Repak"
+
+# Check that the installed Python version is 3.10 or newer.
+python --version
+
+# Create an isolated Python environment for this project.
+python -m venv .venv
+
+# Install the applications dependencies into that environment.
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+# Start the server on your computer, using port 8000.
+.\.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000
+```
+
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser. You should see **Repak transcription** and **The local application is running.** Keep the terminal open while using the page. Press **Ctrl+C** in that terminal to stop the server.
+
+**For later runs, open PowerShell in the repository and repeat the final server command.**
+
 ## Contributing through pull requests
 
 All changes to `main` must go through a pull request (PR). Reviewer approvals are not required, but asking a teammate to review your PR is encouraged.

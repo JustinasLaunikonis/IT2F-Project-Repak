@@ -6,3 +6,8 @@ CLAUDE.local.md
 
 /docs/PROJECT_CONTEXT.md
 /Y2P1/
+
+# Local Python environment and generated cache files.
+.venv/
+__pycache__/
+*.pyc
