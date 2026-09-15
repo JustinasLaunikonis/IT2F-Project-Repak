@@ -23,9 +23,26 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000
 ```
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser. You should see **Repak transcription** and **The local application is running.** Keep the terminal open while using the page. Press **Ctrl+C** in that terminal to stop the server.
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser. You should see **Repak transcription** and recording controls. Keep the terminal open while using the page. Press **Ctrl+C** in that terminal to stop the server.
 
 **For later runs, open PowerShell in the repository and repeat the final server command.**
+
+## Record microphone and loopback audio
+
+1. Open the local app in Chrome or Edge on Windows and use headphones.
+2. Click **Start recording**. Select a tab or screen with audio and enable **Share audio** in the browser dialog.
+3. Allow microphone access. Wait until the page says it is recording, then speak while the shared source plays audio.
+4. Click **Stop recording**, listen to the preview, and click **Download WAV**.
+
+The WAV contains both sources mixed to mono, 16-bit PCM at the browser audio context's sample rate. Each input uses half gain to leave mixing headroom. Audio is processed locally in an AudioWorklet; nothing is uploaded and screen video is never saved. Recordings are held in browser memory, with an automatic 30-minute limit. Download before refreshing or closing the page.
+
+Loopback here means the audio track supplied by browser screen sharing. Available audio sources depend on the browser and operating system; see the [Screen Capture API documentation](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Capture_API/Using_Screen_Capture). If no audio track is shared, recording does not start. Ending sharing or disconnecting an input finishes the captured recording. Run on localhost or HTTPS; opening the HTML directly is unsupported.
+
+### Verification
+
+Run `node --test tests/recorder.test.mjs` with Node.js installed to check WAV headers, PCM conversion, buffer flushing, and the recording duration limit.
+
+For a hardware smoke test, record speech and audio from a separate shared tab together, stop, download, and verify both are audible. Also try cancelling each permission prompt, sharing without audio, ending sharing while recording, and recording a second clip. Confirm the microphone/sharing indicators turn off after stop or a failed start. These checks require a real browser and audio devices.
 
 ## Contributing through pull requests
 

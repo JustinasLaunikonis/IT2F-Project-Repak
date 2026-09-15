@@ -20,3 +20,30 @@ h1 {
     margin-top: 0;
     line-height: 1.2;
 }
+
+.controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1.5rem;
+}
+
+button, #download {
+    padding: 0.7rem 1rem;
+    border: 0;
+    border-radius: 0.4rem;
+    background: #1d4ed8;
+    color: white;
+    font: inherit;
+    cursor: pointer;
+}
+
+#stop { background: #b91c1c; }
+button:disabled { opacity: 0.45; cursor: default; }
+:focus-visible { outline: 3px solid #d97706; outline-offset: 3px; }
+#timer { font-variant-numeric: tabular-nums; font-size: 1.25rem; }
+.hint { color: #526071; font-size: 0.9rem; }
+#status[data-error="true"] { color: #b91c1c; }
+audio { width: 100%; }
+#download { display: inline-block; }
