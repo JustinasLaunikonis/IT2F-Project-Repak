@@ -1,44 +1,82 @@
 class PcmRecorder extends AudioWorkletProcessor {
     constructor() {
         super();
-        this.buffer = new Float32Array(4096);
+        this.buffer = new Int16Array(4096);
         this.length = 0;
         this.frames = 0;
         this.active = true;
-        this.port.onmessage = ({ data }) => {
-            if (data === "stop") this.finish();
+
+        const recorder = this;
+        this.port.onmessage = function (event) {
+            if (event.data === "stop") {
+                recorder.finish();
+            }
         };
     }
 
+    convertSample(sample) {
+        let safeSample = sample;
+
+        if (safeSample < -1) {
+            safeSample = -1;
+        } else if (safeSample > 1) {
+            safeSample = 1;
+        }
+
+        if (safeSample < 0) {
+            return Math.round(safeSample * 32768);
+        }
+
+        return Math.round(safeSample * 32767);
+    }
+
     flush() {
-        if (!this.length) return;
+        if (this.length === 0) {
+            return;
+        }
+
         const chunk = this.buffer.slice(0, this.length);
-        this.port.postMessage({ chunk }, [chunk.buffer]);
+        this.port.postMessage({ chunk: chunk }, [chunk.buffer]);
         this.length = 0;
     }
 
     finish() {
-        if (!this.active) return;
+        if (!this.active) {
+            return;
+        }
+
         this.active = false;
         this.flush();
         this.port.postMessage({ done: true });
     }
 
     process(inputs) {
-        if (!this.active) return false;
-        const input = inputs[0][0];
-        if (input) {
-            for (const sample of input) {
-                this.buffer[this.length++] = sample;
+        if (!this.active) {
+            return false;
+        }
+
+        const inputGroup = inputs[0];
+
+        if (inputGroup && inputGroup.length > 0) {
+            const input = inputGroup[0];
+
+            for (let sampleIndex = 0; sampleIndex < input.length; sampleIndex++) {
+                this.buffer[this.length] = this.convertSample(input[sampleIndex]);
+                this.length++;
                 this.frames++;
-                if (this.length === this.buffer.length) this.flush();
+
+                if (this.length === this.buffer.length) {
+                    this.flush();
+                }
+
                 if (this.frames >= sampleRate * 30 * 60) {
                     this.finish();
                     return false;
                 }
             }
         }
-        // Output remains silent: never play the microphone through the speakers.
+
+        // No samples are written to the output, so the microphone is not played back.
         return true;
     }
 }

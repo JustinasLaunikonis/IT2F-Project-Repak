@@ -1,15 +1,24 @@
-// Mono, signed 16-bit little-endian PCM in a standard RIFF/WAVE container.
+function writeText(view, offset, text) {
+    for (let characterIndex = 0; characterIndex < text.length; characterIndex++) {
+        view.setUint8(offset + characterIndex, text.charCodeAt(characterIndex));
+    }
+}
+
+// Create a mono, signed 16-bit PCM WAV file from Int16 audio chunks.
 export function encodeWav(chunks, sampleRate) {
-    const samples = chunks.reduce((total, chunk) => total + chunk.length, 0);
-    const buffer = new ArrayBuffer(44 + samples * 2);
+    let sampleCount = 0;
+
+    for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+        sampleCount += chunks[chunkIndex].length;
+    }
+
+    const buffer = new ArrayBuffer(44 + sampleCount * 2);
     const view = new DataView(buffer);
-    const writeText = (offset, text) => {
-        for (let i = 0; i < text.length; i++) view.setUint8(offset + i, text.charCodeAt(i));
-    };
-    writeText(0, "RIFF");
-    view.setUint32(4, 36 + samples * 2, true);
-    writeText(8, "WAVE");
-    writeText(12, "fmt ");
+
+    writeText(view, 0, "RIFF");
+    view.setUint32(4, 36 + sampleCount * 2, true);
+    writeText(view, 8, "WAVE");
+    writeText(view, 12, "fmt ");
     view.setUint32(16, 16, true);
     view.setUint16(20, 1, true);
     view.setUint16(22, 1, true);
@@ -17,15 +26,19 @@ export function encodeWav(chunks, sampleRate) {
     view.setUint32(28, sampleRate * 2, true);
     view.setUint16(32, 2, true);
     view.setUint16(34, 16, true);
-    writeText(36, "data");
-    view.setUint32(40, samples * 2, true);
-    let offset = 44;
-    for (const chunk of chunks) {
-        for (const sample of chunk) {
-            const value = Math.max(-1, Math.min(1, sample));
-            view.setInt16(offset, Math.round(value * (value < 0 ? 32768 : 32767)), true);
-            offset += 2;
+    writeText(view, 36, "data");
+    view.setUint32(40, sampleCount * 2, true);
+
+    let outputOffset = 44;
+
+    for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+        const chunk = chunks[chunkIndex];
+
+        for (let sampleIndex = 0; sampleIndex < chunk.length; sampleIndex++) {
+            view.setInt16(outputOffset, chunk[sampleIndex], true);
+            outputOffset += 2;
         }
     }
+
     return buffer;
 }
