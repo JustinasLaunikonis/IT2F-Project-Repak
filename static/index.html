@@ -1,17 +1,46 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Repak transcription</title>
-        <link rel="stylesheet" href="/static/index.css">
-    </head>
-    
-    <body>
-        <main>
-            <h1>Repak transcription</h1>
-            <p>The local application is running.</p>
-            <p>This is the initial application screen. Recording and transcription are not available yet.</p>
-        </main>
-    </body>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Repak transcription</title>
+    <link rel="stylesheet" href="/static/index.css">
+</head>
+
+<body>
+    <main>
+        <h1>Repak live call transcription</h1>
+        <p>The local application is running.</p>
+        <p>This is the initial application screen. Recording and transcription are not available yet.</p>
+
+        <form>
+            <fieldset>
+                <legend>Transcription controls</legend>
+
+                <p id="connection-status">
+                    Status: Not connected
+                </p>
+
+                <div class="controls">
+                    <button id="start-button" type="button" disabled>
+                        Start transcription
+                    </button>
+
+                    <button id="stop-button" type="button" disabled>
+                        Stop transcription
+                    </button>
+                </div>
+
+                <label for="transcript">Live transcript</label>
+
+                <textarea id="transcript" name="transcript" readonly
+                    placeholder="The live transcript will appear here."></textarea>
+            </fieldset>
+        </form>
+    </main>
+
+
+</body>
+
 </html>
