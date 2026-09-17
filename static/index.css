@@ -46,12 +46,17 @@ legend {
     margin-bottom: 20px;
 }
 
-.button {
+button {
     padding: 0.75rem 1rem;
     border: none;
     border-radius: 0.75rem;
-    color: white;
 }
+
+button:disabled {
+    background-color: #9ca3af;
+    color: #5d5e61;
+}
+
 
 label {
     display: block;
@@ -68,4 +73,5 @@ textarea {
     border-radius: 0.75rem;
     resize: none;
     overflow-y: auto;
+    min-height: 200px;
 }
