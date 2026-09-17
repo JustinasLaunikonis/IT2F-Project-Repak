@@ -31,7 +31,7 @@ Details on all pages:
 [Oorspronkelijke melding] (original report): long string, this would be the AI transcription of what the report was
 
 3:
-[FAT] (no idea what this means) : idk
+[FAT] (Factory Acceptance Test) : idk (REMOVE )
 [Installatie] (i assume date of installation) : dd-mm-yyyy
 
 3.1.1:
