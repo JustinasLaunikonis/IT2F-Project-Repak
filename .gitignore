@@ -11,3 +11,9 @@ CLAUDE.local.md
 .venv/
 __pycache__/
 *.pyc
+
+# IDE files
+.idea/
+
+# docx_generator output
+docx_generator/output.docx
