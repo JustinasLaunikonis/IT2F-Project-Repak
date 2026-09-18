@@ -15,10 +15,17 @@ function showState(state) {
         activityMessage.textContent = "Application waiting to start";
     } else if (state === "recording") {
         activityStatus.textContent = "Activity: Recording";
-        activityMessage.textContent = "Recording call";
+        activityMessage.textContent = "Recording the call";
     } else if (state === "processing") {
         activityStatus.textContent = "Activity: Processing";
-        activityMessage.textContent = "Processing the call";
+        activityMessage.textContent = "Processing the recording";
+    } else if (state === "completed") {
+        activityStatus.textContent = "Activity: Completed";
+        activityMessage.textContent = "Transcription completed successfully";
+    } else if (state === "error") {
+        activityStatus.textContent = "Activity: Error";
+        activityMessage.textContent =
+            "Error - something went wrong while recording";
     }
 }
 
@@ -32,4 +39,12 @@ testRecordingButton.addEventListener("click", function () {
 
 testProcessingButton.addEventListener("click", function () {
     showState("processing");
+});
+
+testCompletedButton.addEventListener("click", function () {
+    showState("completed");
+});
+
+testErrorButton.addEventListener("click", function () {
+    showState("error");
 });
