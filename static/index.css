@@ -38,6 +38,34 @@ legend {
     color: #070707;
     border: 1px solid #d7dde5;
     border-radius: 0.75rem;
+    font-weight: bold;
+}
+
+.status {
+    padding: 1rem;
+    font-weight: bold;
+    border: 1px solid #d7dde5;
+    border-radius: 0.75rem;
+}
+
+.status-idle {
+    background-color: #f3f4f6;
+}
+
+.status-recording {
+    background-color: #b0c8f7;
+}
+
+.status-processing {
+    background-color: #fde4ad;
+}
+
+.status-completed {
+    background-color: #bce2b8;
+}
+
+.status-error {
+    background-color: #f08787;
 }
 
 .controls {
@@ -74,4 +102,22 @@ textarea {
     resize: none;
     overflow-y: auto;
     min-height: 200px;
+}
+
+.state-tester {
+    margin-top: 20px;
+    padding: 1rem;
+    border: 1px solid #d7dde5;
+    border-radius: 0.75rem;
+}
+
+.state-tester p {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+}
+
+.test-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
 }
