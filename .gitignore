@@ -16,4 +16,5 @@ __pycache__/
 .idea/
 
 # docx_generator output
-docx_generator/output.docx
+docx_generator/output*
+docx_generator/outputs/output*
