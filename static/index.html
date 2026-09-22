@@ -31,11 +31,11 @@
                 </p>
 
                 <div class="controls">
-                    <button id="start-button" type="button" disabled>
+                    <button id="start-button" type="button">
                         Start transcription
                     </button>
 
-                    <button id="stop-button" type="button" disabled>
+                    <button id="stop-button" type="button">
                         Stop transcription
                     </button>
                 </div>
@@ -79,7 +79,8 @@
             </div>
         </div>
     </main>
-    <script src="/static/index.js"></script>
+    <script type="module" src="/static/index.js"></script>
+    <!-- 'type=module' allows index.js import functions from recorder.js-->
 </body>
 
 </html>
