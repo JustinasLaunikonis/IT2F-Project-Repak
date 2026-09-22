@@ -1,4 +1,12 @@
-{
+from pathlib import Path
+
+from docx_generator import convert_json_to_docx, open_document
+
+script_directory = Path(__file__).resolve().parent
+
+json_file_input = script_directory / "template" / "text-input-example.json"
+
+json_string_input = """{
   "[machinenummer]": "MCH-2024-00158",
   "[distributeur]": "Distributor B.V.",
   "[naam monteur]": "Joost Klein",
@@ -46,4 +54,8 @@
   "[conceptadvies]": "Switch off the machine safely, check for visible blockages or loose connections, and do not restart the machine if error code E204 immediately returns. Record the conditions under which the error occurs and wait for further instructions from the engineer.",
   "[documentnaam, documentnummer, versie, paragraaf of pagina]": "Source references are pending. Have the engineer verify each advice step against the applicable machine documentation.",
   "[afwijkingen of onzekerheden]": "The affected station is unclear in the recording, the meaning of E204 has not been verified, and no source document is available yet."
-}
+}"""
+
+file = convert_json_to_docx(json_string_input)
+open_document(file)
+
