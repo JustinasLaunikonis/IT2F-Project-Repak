@@ -19,7 +19,15 @@
                 <legend>Transcription controls</legend>
 
                 <p id="connection-status">
-                    Status: Not connected
+                    Connection: Not connected
+                </p>
+
+                <p id="activity-status" class="status status-idle">
+                    Activity: Idle
+                </p>
+
+                <p id="activity-message">
+                    Application waiting to start.
                 </p>
 
                 <div class="controls">
@@ -38,7 +46,40 @@
                     placeholder="The live transcript will appear here."></textarea>
             </fieldset>
         </form>
+
+        <div class="state-tester">
+            <h2>Test activity states</h2>
+
+            <p>
+                Click on buttons to preview each application state.
+                <br>
+                Buttons do not start a real recording yet.
+            </p>
+
+            <div class="test-controls">
+                <button id="test-idle" type="button">
+                    Test idle
+                </button>
+
+                <button id="test-recording" type="button">
+                    Test recording
+                </button>
+
+                <button id="test-processing" type="button">
+                    Test processing
+                </button>
+
+                <button id="test-completed" type="button">
+                    Test completed
+                </button>
+
+                <button id="test-error" type="button">
+                    Test error
+                </button>
+            </div>
+        </div>
     </main>
+    <script src="/static/index.js"></script>
 </body>
 
 </html>
