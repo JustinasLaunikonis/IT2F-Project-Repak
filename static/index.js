@@ -58,7 +58,7 @@ testErrorButton.addEventListener("click", function () {
     showState("error");
 });
 
-//start recording when 'start transcription' is clicked
+//start recording when 'start transcription' is clicked, update the activity state to 'recording'
 startButton.addEventListener("click", async function () {
     //async is used bcs starting the recorder takes time, it waits for screen sharing and microphone permission
     if (recordingSessionActive === true) {
@@ -83,5 +83,26 @@ startButton.addEventListener("click", async function () {
         stopButton.disabled = false;
 
         showState("recording");
-    } catch {}
+    } catch (error) {
+        recordingSessionActive = false;
+
+        connectionStatus.textContent = "Connection: Not connected";
+        startButton.disabled = false;
+        stopButton.disabled = true;
+
+        showState("error");
+        activityMessage.textContent = error.message;
+    }
+});
+
+//stop recording when 'stop transcription is pressed, update the activity state to 'processing'
+stopButton.addEventListener("click", async function () {
+    if (recordingSessionActive === false || stopRequested === true) {
+        return;
+    }
+
+    stopRequested = true;
+    stopButton.disabled = true;
+
+    showState("processing");
 });
