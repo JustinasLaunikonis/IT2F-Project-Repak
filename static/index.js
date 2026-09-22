@@ -57,3 +57,20 @@ testCompletedButton.addEventListener("click", function () {
 testErrorButton.addEventListener("click", function () {
     showState("error");
 });
+
+//start recording when 'start transcription' is clicked
+startButton.addEventListener("click", async function () {
+    //async is used bcs starting the recorder takes time, it waits for permissions like screen sharing and microphone permission
+    if (recordingSessionActive === true) {
+        return;
+    }
+
+    recordingSessionActive = true;
+    stopRequested = false;
+
+    startButton.disabled = true;
+    stopButton.disabled = true;
+
+    activityMessage.textContent =
+        "Please choose a source to share and allow microphone access";
+});
