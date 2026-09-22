@@ -60,7 +60,7 @@ testErrorButton.addEventListener("click", function () {
 
 //start recording when 'start transcription' is clicked
 startButton.addEventListener("click", async function () {
-    //async is used bcs starting the recorder takes time, it waits for permissions like screen sharing and microphone permission
+    //async is used bcs starting the recorder takes time, it waits for screen sharing and microphone permission
     if (recordingSessionActive === true) {
         return;
     }
@@ -73,4 +73,15 @@ startButton.addEventListener("click", async function () {
 
     activityMessage.textContent =
         "Please choose a source to share and allow microphone access";
+
+    try {
+        //try to start recorder
+        await startWavRecording(); //wait until wav recorder finished starting.
+        //startWabRecording() comes from recorder.js. recorder.js requests shared audio and mic access. it uses pcm-worklet.js to capture audio samples
+
+        connectionStatus.textContent = "Connection: Connected";
+        stopButton.disabled = false;
+
+        showState("recording");
+    } catch {}
 });
