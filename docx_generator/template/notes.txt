@@ -1,0 +1,22 @@
+Input fields
+
+Input keys are case-sensitive and must match the Word placeholders exactly.
+See text-input-example.json in this folder for the complete set of keys and
+example values for meldingsformulier-template.docx. Keep these files together
+when updating the report format.
+
+The revised template includes contact and machine details, review details,
+transcription and uncertainty, the reported problem and previous actions,
+missing information, analysis, source references, and draft advice.
+All values in the example JSON are strings, including dates and confidence
+labels. JSON keys include the surrounding square brackets.
+
+The converter accepts a pathlib.Path to a JSON file or a string containing JSON.
+A string containing a filename is not treated as a file path.
+Unfilled placeholders remain visible and are reported after conversion.
+The converter returns the generated document path without opening Word.
+Generated documents are saved in docx_generator/outputs with timestamped names.
+
+Review generated content and uncertainty before final saving or export.
+Knowledge-source and advice fields describe the template; they do not establish
+knowledge retrieval as an agreed MVP feature.

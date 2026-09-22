@@ -47,7 +47,10 @@ def find_unreplaced_placeholders(document):
     for xml_element in xml_elements:
         for paragraph in xml_element.iter(qn("w:p")):
             #turn XML into text. Join text so that a run ending between a placeholder doesn't mess up detection
-            text = "".join(text_node.text or "" for text_node in paragraph.iter(qn("w:t")))
+            text = ""
+            for text_node in paragraph.iter(qn("w:t")):
+                if text_node.text is not None:
+                    text += text_node.text
             # Only text in brackets "[]" is a placeholder in the document, so anything that still has square brackets
             # is a placeholder that hasn't been filled in
             placeholders.update(re.findall(r"\[[^][\r\n]+]", text))
@@ -143,7 +146,7 @@ def convert_json_to_docx(text_input):
     iterator = 2
 
     while Path.exists(working_docx_destination):
-        working_docx_destination = working_docx_destination = script_directory / "outputs" / (
+        working_docx_destination = script_directory / "outputs" / (
         Path("output - " + datetime.now().strftime("%d-%m-%Y, %H-%M-%S") + "_" + str(iterator) + ".docx"))
         iterator += 1
 
