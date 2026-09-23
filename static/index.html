@@ -12,11 +12,13 @@
     <main>
         <h1>Repak live call transcription</h1>
         <p>The local application is running.</p>
-        <p>This is the initial application screen. Recording and transcription are not available yet.</p>
+        <p>Record your microphone and review the audio before downloading. Transcription is not available yet.</p>
 
         <form>
             <fieldset>
-                <legend>Transcription controls</legend>
+                <legend>Recording controls</legend>
+                <p>By default, Start asks only for microphone access and records your voice. Caller audio is not captured.</p>
+                <label><input id="include-caller" type="checkbox"> Also record caller audio (requires screen or tab sharing with audio)</label>
 
                 <p id="connection-status">
                     Connection: Not connected
@@ -32,23 +34,25 @@
 
                 <div class="controls">
                     <button id="start-button" type="button">
-                        Start transcription
+                        Start recording
                     </button>
 
-                    <button id="stop-button" type="button">
-                        Stop transcription
+                    <button id="stop-button" type="button" disabled>
+                        Stop recording
                     </button>
                 </div>
 
                 <div id="recording-review" hidden>
                     <h2>Review recordings</h2>
-                    <p>Listen to both channels. Download each file only after confirming that it contains the intended speaker.</p>
+                    <p>Listen to each available recording. Download only after confirming that it contains the intended audio.</p>
                     <label for="harm-preview">Microphone (Harm)</label>
                     <audio id="harm-preview" controls></audio>
                     <a id="harm-download" download="harm.wav">Download harm.wav</a>
-                    <label for="caller-preview">Shared audio (caller)</label>
-                    <audio id="caller-preview" controls></audio>
-                    <a id="caller-download" download="caller.wav">Download caller.wav</a>
+                    <div id="caller-review" hidden>
+                        <label for="caller-preview">Shared audio (caller)</label>
+                        <audio id="caller-preview" controls></audio>
+                        <a id="caller-download" download="caller.wav">Download caller.wav</a>
+                    </div>
                 </div>
 
                 <label for="transcript">Live transcript</label>

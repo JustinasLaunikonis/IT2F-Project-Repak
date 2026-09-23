@@ -6,6 +6,8 @@ const connectionStatus = document.getElementById("connection-status");
 
 const startButton = document.getElementById("start-button");
 const stopButton = document.getElementById("stop-button");
+const includeCaller = document.getElementById("include-caller");
+const callerReview = document.getElementById("caller-review");
 const recordingReview = document.getElementById("recording-review");
 const harmPreview = document.getElementById("harm-preview");
 const callerPreview = document.getElementById("caller-preview");
@@ -16,6 +18,7 @@ let callerUrl = null;
 
 function clearRecordingReview() {
     recordingReview.hidden = true;
+    callerReview.hidden = true;
     harmPreview.removeAttribute("src");
     callerPreview.removeAttribute("src");
     harmDownload.removeAttribute("href");
@@ -32,11 +35,14 @@ function clearRecordingReview() {
 
 function showRecordingReview(files) {
     harmUrl = URL.createObjectURL(files.harm);
-    callerUrl = URL.createObjectURL(files.caller);
     harmPreview.src = harmUrl;
-    callerPreview.src = callerUrl;
     harmDownload.href = harmUrl;
-    callerDownload.href = callerUrl;
+    if (files.caller !== undefined) {
+        callerUrl = URL.createObjectURL(files.caller);
+        callerPreview.src = callerUrl;
+        callerDownload.href = callerUrl;
+        callerReview.hidden = false;
+    }
     recordingReview.hidden = false;
 }
 
@@ -45,6 +51,7 @@ function handleUnexpectedStop(error, files) {
     stopRequested = false;
     connectionStatus.textContent = "Connection: Not connected";
     startButton.disabled = false;
+    includeCaller.disabled = false;
     stopButton.disabled = true;
     if (error !== null) {
         showState("error");
@@ -52,7 +59,7 @@ function handleUnexpectedStop(error, files) {
     } else {
         showRecordingReview(files);
         showState("idle");
-        activityMessage.textContent = "An audio source stopped sharing. Review both recordings before downloading.";
+        activityMessage.textContent = "An audio source disconnected. Review the available recording before downloading.";
     }
 }
 
@@ -81,7 +88,10 @@ function showState(state) {
         activityMessage.textContent = "Application waiting to start";
     } else if (state === "recording") {
         activityStatus.textContent = "Activity: Recording";
-        activityMessage.textContent = "Recording the call";
+        activityMessage.textContent = "Recording your microphone";
+        if (includeCaller.checked) {
+            activityMessage.textContent = "Recording your microphone and caller audio";
+        }
     } else if (state === "processing") {
         activityStatus.textContent = "Activity: Processing";
         activityMessage.textContent = "Processing the recording";
@@ -115,9 +125,8 @@ testErrorButton.addEventListener("click", function () {
     showState("error");
 });
 
-//start recording when 'start transcription' is clicked, update the activity state to 'recording'
+// Start capture after the user allows access to the selected audio sources.
 startButton.addEventListener("click", async function () {
-    //async is used bcs starting the recorder takes time, it waits for screen sharing and microphone permission
     if (recordingSessionActive === true) {
         return;
     }
@@ -127,15 +136,17 @@ startButton.addEventListener("click", async function () {
     clearRecordingReview();
 
     startButton.disabled = true;
+    includeCaller.disabled = true;
     stopButton.disabled = true;
 
-    activityMessage.textContent =
-        "Please choose a source to share and allow microphone access";
+    activityMessage.textContent = "Please allow microphone access";
+    if (includeCaller.checked) {
+        activityMessage.textContent = "Please choose a source to share with audio and allow microphone access";
+    }
 
     try {
         //try to start recorder
-        await startWavRecording(handleUnexpectedStop); //wait until wav recorder finished starting.
-        //startWabRecording() comes from recorder.js. recorder.js requests shared audio and mic access. it uses pcm-worklet.js to capture audio samples
+        await startWavRecording(handleUnexpectedStop, includeCaller.checked);
 
         connectionStatus.textContent = "Connection: Connected";
         stopButton.disabled = false;
@@ -146,6 +157,7 @@ startButton.addEventListener("click", async function () {
 
         connectionStatus.textContent = "Connection: Not connected";
         startButton.disabled = false;
+        includeCaller.disabled = false;
         stopButton.disabled = true;
 
         showState("error");
@@ -153,7 +165,7 @@ startButton.addEventListener("click", async function () {
     }
 });
 
-//stop recording when 'stop transcription is pressed, update the activity state to 'processing'
+// Stop capture and let the user review audio before choosing to download it.
 stopButton.addEventListener("click", async function () {
     if (recordingSessionActive === false || stopRequested === true) {
         return;
@@ -174,11 +186,15 @@ stopButton.addEventListener("click", async function () {
 
         connectionStatus.textContent = "Connection: Not connected";
         startButton.disabled = false;
+        includeCaller.disabled = false;
         stopButton.disabled = true;
 
         showState("idle");
         activityMessage.textContent =
-            "Recording stopped. Review both audio files before downloading. Transcription is not available yet.";
+            "Recording stopped. Review your microphone audio before downloading. Transcription is not available yet.";
+        if (files.caller !== undefined) {
+            activityMessage.textContent = "Recording stopped. Review both audio files before downloading. Transcription is not available yet.";
+        }
     } catch (error) {
         //reset the interface if recording cant be stopped
         recordingSessionActive = false;
@@ -186,6 +202,7 @@ stopButton.addEventListener("click", async function () {
 
         connectionStatus.textContent = "Connection: Not connected";
         startButton.disabled = false;
+        includeCaller.disabled = false;
         stopButton.disabled = true;
 
         showState("error");
