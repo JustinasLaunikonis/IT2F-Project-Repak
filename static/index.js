@@ -59,7 +59,8 @@ function handleUnexpectedStop(error, files) {
     } else {
         showRecordingReview(files);
         showState("idle");
-        activityMessage.textContent = "An audio source disconnected. Review the available recording before downloading.";
+        activityMessage.textContent =
+            "An audio source disconnected. Review the available recording before downloading.";
     }
 }
 
@@ -72,9 +73,7 @@ const testProcessingButton = document.getElementById("test-processing");
 const testCompletedButton = document.getElementById("test-completed");
 const testErrorButton = document.getElementById("test-error");
 
-const listMicrophonesButton = document.getElementById(
-    "list-microphones-button",
-);
+const microphoneSelect = document.getElementById("microphone-select");
 const microphoneMessage = document.getElementById("microphone-message");
 const microphoneList = document.getElementById("microphone-list");
 
@@ -99,7 +98,8 @@ function showState(state) {
         activityStatus.textContent = "Activity: Recording";
         activityMessage.textContent = "Recording your microphone";
         if (includeCaller.checked) {
-            activityMessage.textContent = "Recording your microphone and caller audio";
+            activityMessage.textContent =
+                "Recording your microphone and caller audio";
         }
     } else if (state === "processing") {
         activityStatus.textContent = "Activity: Processing";
@@ -140,6 +140,17 @@ startButton.addEventListener("click", async function () {
         return;
     }
 
+    const selectedMicrophoneId = microphoneSelect.value; //get id of the microphone chosen by user
+
+    if (selectedMicrophoneId === "") {
+        showState("error");
+
+        activityMessage.textContent =
+            "List the microphones and choose one before the recording";
+
+        return;
+    }
+
     recordingSessionActive = true;
     stopRequested = false;
     clearRecordingReview();
@@ -150,7 +161,8 @@ startButton.addEventListener("click", async function () {
 
     activityMessage.textContent = "Please allow microphone access";
     if (includeCaller.checked) {
-        activityMessage.textContent = "Please choose a source to share with audio and allow microphone access";
+        activityMessage.textContent =
+            "Please choose a source to share with audio and allow microphone access";
     }
 
     try {
@@ -202,7 +214,8 @@ stopButton.addEventListener("click", async function () {
         activityMessage.textContent =
             "Recording stopped. Review your microphone audio before downloading. Transcription is not available yet.";
         if (files.caller !== undefined) {
-            activityMessage.textContent = "Recording stopped. Review both audio files before downloading. Transcription is not available yet.";
+            activityMessage.textContent =
+                "Recording stopped. Review both audio files before downloading. Transcription is not available yet.";
         }
     } catch (error) {
         //reset the interface if recording cant be stopped
