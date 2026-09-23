@@ -65,6 +65,7 @@ function handleUnexpectedStop(error, files) {
 
 window.addEventListener("pagehide", clearRecordingReview);
 
+const stateTester = document.querySelector(".state-tester");
 const testIdleButton = document.getElementById("test-idle");
 const testRecordingButton = document.getElementById("test-recording");
 const testProcessingButton = document.getElementById("test-processing");
@@ -79,6 +80,14 @@ const microphoneList = document.getElementById("microphone-list");
 
 let recordingSessionActive = false; //prevents second recording session from being started
 let stopRequested = false; //prevents stop from being requested more than once
+
+//show test activity controls only when the URL includes ?debug=true
+const urlParameters = new URLSearchParams(window.location.search);
+if (urlParameters.get("debug") === "true") {
+    stateTester.hidden = false;
+} else {
+    stateTester.hidden = true;
+}
 
 function showState(state) {
     activityStatus.className = "status status-" + state; //build a class name using selected state, so if 'recording' "status status-" + "recording" and it will use css for this recording state
