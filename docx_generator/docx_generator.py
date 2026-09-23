@@ -58,14 +58,81 @@ def find_unreplaced_placeholders(document):
 
     return placeholders
 
+def find_text_position(text_nodes, position):
+    current_position = 0
+    for node_index in range(len(text_nodes)):
+        node_text = text_nodes[node_index].text
+        if node_text is None:
+            node_text = ""
+        next_position = current_position + len(node_text)
+        if position < next_position:
+            return node_index, position - current_position
+        current_position = next_position
+
+    last_index = len(text_nodes) - 1
+    return last_index, len(text_nodes[last_index].text)
+
+
+def set_text_node_text(text_node, value):
+    text_node.text = value
+    if value.startswith(" ") or value.endswith(" "):
+        text_node.set(qn("xml:space"), "preserve")
+
+
+def replace_text_in_paragraph(paragraph, replacement_data):
+    for key, value in replacement_data.items():
+        text_nodes = list(paragraph.iter(qn("w:t")))
+        if not text_nodes:
+            continue
+
+        if key == "":
+            for text_node in text_nodes:
+                if text_node.text is not None:
+                    replacement_text = text_node.text.replace(key, str(value))
+                    set_text_node_text(text_node, replacement_text)
+            continue
+
+        paragraph_text = ""
+        for text_node in text_nodes:
+            if text_node.text is not None:
+                paragraph_text += text_node.text
+
+        match_positions = []
+        search_position = 0
+        while True:
+            match_position = paragraph_text.find(key, search_position)
+            if match_position == -1:
+                break
+            match_positions.append(match_position)
+            search_position = match_position + len(key)
+
+        for match_position in reversed(match_positions):
+            first_index, first_offset = find_text_position(text_nodes, match_position)
+            last_index, last_offset = find_text_position(text_nodes, match_position + len(key) - 1)
+            first_node = text_nodes[first_index]
+            last_node = text_nodes[last_index]
+            if first_index == last_index:
+                original_text = first_node.text
+                replacement_text = original_text[:first_offset] + str(value) + original_text[last_offset + 1:]
+                set_text_node_text(first_node, replacement_text)
+            else:
+                prefix = first_node.text[:first_offset]
+                suffix = last_node.text[last_offset + 1:]
+                set_text_node_text(first_node, prefix + str(value))
+                for node_index in range(first_index + 1, last_index):
+                    set_text_node_text(text_nodes[node_index], "")
+                set_text_node_text(last_node, suffix)
+
+
 def replace_text_in_xml(xml_element, replacement_data):
+    for paragraph in xml_element.iter(qn("w:p")):
+        replace_text_in_paragraph(paragraph, replacement_data)
+
     for text_node in xml_element.iter(qn("w:t")):
         if text_node.text is None:
             continue
 
         replacement_text = text_node.text
-        for key, value in replacement_data.items():
-            replacement_text = replacement_text.replace(key, str(value))
 
         replacement_text = replacement_text.replace("\r\n", "\n")
         replacement_text = replacement_text.replace("\r", "\n")
