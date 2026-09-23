@@ -3,6 +3,7 @@ from pathlib import Path
 from docx import Document
 from docx.document import Document as DocumentType
 from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 import json
 import shutil
 import os
@@ -62,9 +63,25 @@ def replace_text_in_xml(xml_element, replacement_data):
         if text_node.text is None:
             continue
 
+        replacement_text = text_node.text
         for key, value in replacement_data.items():
-            if key in text_node.text:
-                text_node.text = text_node.text.replace(key, str(value))
+            replacement_text = replacement_text.replace(key, str(value))
+
+        replacement_text = replacement_text.replace("\r\n", "\n")
+        replacement_text = replacement_text.replace("\r", "\n")
+        lines = replacement_text.split("\n")
+        text_node.text = lines[0]
+
+        parent = text_node.getparent()
+        insert_at = parent.index(text_node) + 1
+        for line in lines[1:]:
+            break_node = OxmlElement("w:br")
+            parent.insert(insert_at, break_node)
+            insert_at += 1
+            next_text_node = OxmlElement("w:t")
+            next_text_node.text = line
+            parent.insert(insert_at, next_text_node)
+            insert_at += 1
 
 # Handles both .json files and json strings
 def replace_text_in_document(document: DocumentType, text_input : Path | str):
@@ -167,4 +184,3 @@ def convert_json_to_docx(text_input):
 
     # return the file itself
     return Path(working_docx_destination)
-
