@@ -14,6 +14,9 @@ from datetime import datetime
 script_directory = Path(__file__).resolve().parent
 template_docx = script_directory / "template" / "meldingsformulier-template.docx"
 
+class UnreplacedPlaceholdersError(Exception):
+    pass
+
 # using XML to find the text nodes in the Document is the best approach as XML just returns all the text nodes. This
 #   is better than going through paragraphs, tables, footers etc. separately
 def print_unreplaced_placeholders(document):
@@ -21,9 +24,10 @@ def print_unreplaced_placeholders(document):
     unreplaced_placeholders = find_unreplaced_placeholders(document)
 
     if unreplaced_placeholders:
-        print("Info: The following placeholders were not replaced in the word document:")
+        error = "The following placeholders were not replaced in the word document:\n"
         for unreplaced_placeholder in unreplaced_placeholders:
-            print("-", unreplaced_placeholder)
+            error += ("- " + unreplaced_placeholder + "\n")
+        raise UnreplacedPlaceholdersError(error)
     else:
         print("All placeholders were replaced")
 
@@ -143,7 +147,7 @@ def convert_json_to_docx(text_input):
     iterator = 2
 
     while Path.exists(working_docx_destination):
-        working_docx_destination = working_docx_destination = script_directory / "outputs" / (
+        working_docx_destination = script_directory / "outputs" / (
         Path("output - " + datetime.now().strftime("%d-%m-%Y, %H-%M-%S") + "_" + str(iterator) + ".docx"))
         iterator += 1
 
