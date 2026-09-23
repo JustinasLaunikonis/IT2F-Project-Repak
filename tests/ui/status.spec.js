@@ -1,7 +1,36 @@
 const { test, expect } = require("@playwright/test");
 
+const normalPageUrls = ["/", "/?debug=false"];
+
+for (const pageUrl of normalPageUrls) {
+    test("status preview controls stay hidden on " + pageUrl, async function ({ page }) {
+        await page.goto(pageUrl);
+
+        await expect(page.locator(".state-tester")).toBeHidden();
+
+        const previewButtonIds = [
+            "#test-idle",
+            "#test-recording",
+            "#test-processing",
+            "#test-completed",
+            "#test-error"
+        ];
+
+        for (const buttonId of previewButtonIds) {
+            await expect(page.locator(buttonId)).toBeHidden();
+        }
+
+        await expect(page.locator("#start-button")).toBeVisible();
+        await expect(page.locator("#start-button")).toBeEnabled();
+        await expect(page.locator("#stop-button")).toBeVisible();
+        await expect(page.locator("#activity-status")).toHaveText("Activity: Idle");
+    });
+}
+
 test("status preview buttons show each state and its message", async function ({ page }) {
-    await page.goto("/");
+    await page.goto("/?debug=true");
+
+    await expect(page.locator(".state-tester")).toBeVisible();
 
     const status = page.locator("#activity-status");
     const message = page.locator("#activity-message");
@@ -19,6 +48,7 @@ test("status preview buttons show each state and its message", async function ({
     ];
 
     for (const state of states) {
+        await expect(page.locator(state.button)).toBeVisible();
         await page.locator(state.button).click();
         await expect(status).toHaveText("Activity: " + state.name);
         await expect(status).toHaveClass("status status-" + state.name.toLowerCase());
