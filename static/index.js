@@ -123,7 +123,6 @@ stopButton.addEventListener("click", async function () {
         startButton.disabled = false;
 
         showState("completed");
-
     } catch (error) {
         //reset the interface if recording cant be stopped
         recordingSessionActive = false;
@@ -157,30 +156,61 @@ async function listMicrophones() {
     let microphoneStream = null; //temporary live connection to microphone. here means no connection yet
 
     try {
-        microphoneStream = await navigator.mediaDevices.getUserMedia({ //ask user for temporary microphone permission
-        audio: true
+        microphoneStream = await navigator.mediaDevices.getUserMedia({
+            //ask user for temporary microphone permission
+            audio: true,
         });
 
         const devices = await navigator.mediaDevices.enumerateDevices(); //give mics connected to the pc (count/list them one by one - enumerate)
-       
+
         let microphoneCount = 0;
 
         //go through all connected media devices
-        for(const device of devices){
-            if(device.kind === "audioinput"){ //audioinput means microphone (mediadevices api standard)
+        for (const device of devices) {
+            if (device.kind === "audioinput") {
+                //audioinput means microphone (mediadevices api standard)
                 microphoneCount++;
 
                 const listItem = document.createElement("li");
 
-                if(device.label){
+                if (device.label) {
                     listItem.textContent = device.label;
-                }else{
+                } else {
                     listItem.textContent = "Microphone" + microphoneCount;
                 }
 
-                microphoneList.appendChild(listItem);
+                microphoneList.appendChild(listItem); //once device is found, add it to the list and show it
             }
         }
-        
+
+        if (microphoneCount === 0) {
+            microphoneMessage.textContent = "No microphone inputs were found";
+        } else {
+            microphoneMessage.textContent =
+                microphoneCount + " microphone inputs found";
+        }
+    } catch (error) {
+        //show message when permissions are denied
+        if (error.name === "NotAllowedError") {
+            microphoneMessage.textContent =
+                "Microphone access was denied. Allow access and try again";
+        } else {
+            microphoneMessage.textContent = "Microphones could not be loaded";
+        }
+    } finally {
+        if (microphoneStream !== null) {
+            const microphoneTracks = microphoneStream.getTracks(); //get the mic connectin from the stream. track = one live audio connection from media stream
+
+            //stop every mic connection
+            for (const microphoneTrack of microphoneTracks) {
+                microphoneTrack.stop();
+            }
+        }
+
+        listMicrophonesButton.disabled = false;
     }
 }
+
+listMicrophonesButton.addEventListener("click", function () {
+    listMicrophones();
+});
