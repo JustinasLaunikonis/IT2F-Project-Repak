@@ -6,6 +6,57 @@ const connectionStatus = document.getElementById("connection-status");
 
 const startButton = document.getElementById("start-button");
 const stopButton = document.getElementById("stop-button");
+const recordingReview = document.getElementById("recording-review");
+const harmPreview = document.getElementById("harm-preview");
+const callerPreview = document.getElementById("caller-preview");
+const harmDownload = document.getElementById("harm-download");
+const callerDownload = document.getElementById("caller-download");
+let harmUrl = null;
+let callerUrl = null;
+
+function clearRecordingReview() {
+    recordingReview.hidden = true;
+    harmPreview.removeAttribute("src");
+    callerPreview.removeAttribute("src");
+    harmDownload.removeAttribute("href");
+    callerDownload.removeAttribute("href");
+    if (harmUrl !== null) {
+        URL.revokeObjectURL(harmUrl);
+        harmUrl = null;
+    }
+    if (callerUrl !== null) {
+        URL.revokeObjectURL(callerUrl);
+        callerUrl = null;
+    }
+}
+
+function showRecordingReview(files) {
+    harmUrl = URL.createObjectURL(files.harm);
+    callerUrl = URL.createObjectURL(files.caller);
+    harmPreview.src = harmUrl;
+    callerPreview.src = callerUrl;
+    harmDownload.href = harmUrl;
+    callerDownload.href = callerUrl;
+    recordingReview.hidden = false;
+}
+
+function handleUnexpectedStop(error, files) {
+    recordingSessionActive = false;
+    stopRequested = false;
+    connectionStatus.textContent = "Connection: Not connected";
+    startButton.disabled = false;
+    stopButton.disabled = true;
+    if (error !== null) {
+        showState("error");
+        activityMessage.textContent = error.message;
+    } else {
+        showRecordingReview(files);
+        showState("idle");
+        activityMessage.textContent = "An audio source stopped sharing. Review both recordings before downloading.";
+    }
+}
+
+window.addEventListener("pagehide", clearRecordingReview);
 
 const testIdleButton = document.getElementById("test-idle");
 const testRecordingButton = document.getElementById("test-recording");
@@ -73,6 +124,7 @@ startButton.addEventListener("click", async function () {
 
     recordingSessionActive = true;
     stopRequested = false;
+    clearRecordingReview();
 
     startButton.disabled = true;
     stopButton.disabled = true;
@@ -82,7 +134,7 @@ startButton.addEventListener("click", async function () {
 
     try {
         //try to start recorder
-        await startWavRecording(); //wait until wav recorder finished starting.
+        await startWavRecording(handleUnexpectedStop); //wait until wav recorder finished starting.
         //startWabRecording() comes from recorder.js. recorder.js requests shared audio and mic access. it uses pcm-worklet.js to capture audio samples
 
         connectionStatus.textContent = "Connection: Connected";
@@ -114,7 +166,8 @@ stopButton.addEventListener("click", async function () {
 
     try {
         //stop recording and create the wav audio
-        await stopWavRecording();
+        const files = await stopWavRecording();
+        showRecordingReview(files);
 
         recordingSessionActive = false;
         stopRequested = false;
@@ -125,7 +178,7 @@ stopButton.addEventListener("click", async function () {
 
         showState("idle");
         activityMessage.textContent =
-            "Recording stopped. Transcription is not available yet.";
+            "Recording stopped. Review both audio files before downloading. Transcription is not available yet.";
     } catch (error) {
         //reset the interface if recording cant be stopped
         recordingSessionActive = false;

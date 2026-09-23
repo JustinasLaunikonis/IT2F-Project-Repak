@@ -1,243 +1,237 @@
 import { encodeWav } from "./wav.js";
 
-// This file only handles audio capture for IT2F-33.
-// The page controls and status messages can call these exported functions later.
-
 let activeRecording = null;
-let latestWav = null;
-let latestWavDownloaded = true;
 
-function stopAllTracks(streams) {
-    for (let streamIndex = 0; streamIndex < streams.length; streamIndex++) {
-        const tracks = streams[streamIndex].getTracks();
-
-        for (let trackIndex = 0; trackIndex < tracks.length; trackIndex++) {
-            tracks[trackIndex].stop();
+function stopTracks(streams) {
+    for (const stream of streams) {
+        for (const track of stream.getTracks()) {
+            track.stop();
         }
     }
 }
 
-function anyTrackEnded(streams) {
-    for (let streamIndex = 0; streamIndex < streams.length; streamIndex++) {
-        const tracks = streams[streamIndex].getTracks();
-
-        for (let trackIndex = 0; trackIndex < tracks.length; trackIndex++) {
-            if (tracks[trackIndex].readyState === "ended") {
-                return true;
-            }
-        }
+async function cleanUp(recording) {
+    stopTracks(recording.streams);
+    for (const node of recording.nodes) {
+        node.disconnect();
     }
-
-    return false;
-}
-
-async function cleanUpRecording(recording) {
-    stopAllTracks(recording.streams);
-
-    if (recording.node !== null) {
-        recording.node.disconnect();
-    }
-
     if (recording.context !== null && recording.context.state !== "closed") {
         await recording.context.close();
     }
 }
 
-async function completeRecording(recording) {
+async function finish(recording) {
     if (recording.finished) {
         return;
     }
-
     recording.finished = true;
-
     try {
-        await cleanUpRecording(recording);
-
-        if (recording.chunks.length === 0) {
-            throw new Error("No audio was recorded.");
+        await cleanUp(recording);
+        if (recording.error !== null) {
+            throw recording.error;
         }
-
-        const wavData = encodeWav(recording.chunks, recording.context.sampleRate);
-        latestWav = new Blob([wavData], { type: "audio/wav" });
-        latestWavDownloaded = false;
-        recording.resolveFinished(latestWav);
+        if (recording.harmChunks.length === 0 || recording.callerChunks.length === 0) {
+            throw new Error("Both audio sources must contain audio. Check the microphone and shared audio.");
+        }
+        const harmData = encodeWav(recording.harmChunks, 16000);
+        const callerData = encodeWav(recording.callerChunks, 16000);
+        const files = {
+            harm: new Blob([harmData], { type: "audio/wav" }),
+            caller: new Blob([callerData], { type: "audio/wav" }),
+        };
+        recording.resolveFinished(files);
     } catch (error) {
         recording.rejectFinished(error);
     }
-
-    recording.chunks = [];
-
+    recording.harmChunks = [];
+    recording.callerChunks = [];
     if (activeRecording === recording) {
         activeRecording = null;
     }
 }
 
-function requestRecordingStop(recording) {
+function requestStop(recording) {
     if (recording.stopping) {
         return;
     }
-
     recording.stopping = true;
-    recording.node.port.postMessage("stop");
+    for (const node of recording.nodes) {
+        node.port.postMessage("stop");
+    }
 }
 
-function stopWhenTrackEnds(recording, track) {
-    track.addEventListener("ended", function () {
-        if (activeRecording === recording) {
-            requestRecordingStop(recording);
+function reportUnexpectedStop(recording) {
+    if (recording.stopping || recording.unexpectedStopReported) {
+        return;
+    }
+    recording.unexpectedStopReported = true;
+    recording.finishedPromise.then(function (files) {
+        if (typeof recording.onUnexpectedStop === "function") {
+            recording.onUnexpectedStop(null, files);
+        }
+    }, function (error) {
+        if (typeof recording.onUnexpectedStop === "function") {
+            recording.onUnexpectedStop(error, null);
         }
     });
 }
 
-function connectAudioStream(recording, stream) {
-    const audioTracks = stream.getAudioTracks();
-    const audioStream = new MediaStream(audioTracks);
+function connectSource(recording, stream, speaker) {
+    const audioStream = new MediaStream(stream.getAudioTracks());
     const source = recording.context.createMediaStreamSource(audioStream);
-    const gain = recording.context.createGain();
+    const node = new AudioWorkletNode(recording.context, "pcm-recorder", {
+        channelCount: 1,
+        channelCountMode: "explicit",
+    });
+    node.port.onmessage = function (event) {
+        const data = event.data;
+        if (data.chunk) {
+            if (speaker === "harm") {
+                recording.harmChunks.push(data.chunk);
+            } else {
+                recording.callerChunks.push(data.chunk);
+            }
+        }
+        if (data.done) {
+            if (!recording.stopping) {
+                reportUnexpectedStop(recording);
+                requestStop(recording);
+            }
+            recording.doneCount++;
+            if (recording.doneCount === recording.nodes.length) {
+                finish(recording);
+            }
+        }
+    };
+    node.onprocessorerror = function () {
+        recording.error = new Error("Audio capture stopped unexpectedly.");
+        reportUnexpectedStop(recording);
+        finish(recording);
+    };
+    source.connect(node);
+    node.connect(recording.context.destination);
+    recording.nodes.push(node);
+}
 
-    // Each source uses half gain so their combined signal has headroom.
-    gain.gain.value = 0.5;
-    source.connect(gain);
-    gain.connect(recording.node);
-    recording.sources.push(source);
-    recording.gains.push(gain);
-
-    const tracks = stream.getTracks();
-    for (let trackIndex = 0; trackIndex < tracks.length; trackIndex++) {
-        stopWhenTrackEnds(recording, tracks[trackIndex]);
+function watchTracks(recording, stream) {
+    for (const track of stream.getTracks()) {
+        track.addEventListener("ended", function () {
+            if (activeRecording === recording) {
+                reportUnexpectedStop(recording);
+                requestStop(recording);
+            }
+        });
     }
 }
 
-function checkBrowserSupport() {
-    if (!navigator.mediaDevices) {
-        throw new Error("This browser does not support audio recording.");
-    }
-
-    if (!navigator.mediaDevices.getDisplayMedia) {
+function checkSupport() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
         throw new Error("This browser does not support shared audio capture.");
     }
-
     if (!navigator.mediaDevices.getUserMedia) {
         throw new Error("This browser does not support microphone capture.");
     }
-
     if (!window.AudioWorkletNode) {
         throw new Error("This browser does not support AudioWorklet.");
     }
 }
 
-export async function startWavRecording() {
+function captureError(error, source) {
+    if (error.name === "NotAllowedError") {
+        return new Error(source + " permission was denied or sharing was cancelled.");
+    }
+    if (error.name === "NotFoundError") {
+        return new Error("No " + source.toLowerCase() + " source was found.");
+    }
+    return error;
+}
+
+export async function startWavRecording(onUnexpectedStop) {
     if (activeRecording !== null) {
         throw new Error("A recording is already running.");
     }
-
-    checkBrowserSupport();
-
+    checkSupport();
     const recording = {
-        chunks: [],
+        callerChunks: [],
         context: null,
+        doneCount: 0,
+        error: null,
         finished: false,
         finishedPromise: null,
-        gains: [],
-        node: null,
+        harmChunks: [],
+        nodes: [],
+        onUnexpectedStop: onUnexpectedStop,
         rejectFinished: null,
         resolveFinished: null,
-        sources: [],
         stopping: false,
         streams: [],
+        unexpectedStopReported: false,
     };
-
     activeRecording = recording;
-
     try {
-        const displayStream = await navigator.mediaDevices.getDisplayMedia({
-            audio: true,
-            systemAudio: "include",
-            video: true,
-        });
+        let displayStream;
+        try {
+            displayStream = await navigator.mediaDevices.getDisplayMedia({
+                audio: true,
+                systemAudio: "include",
+                video: true,
+            });
+        } catch (error) {
+            throw captureError(error, "Shared audio");
+        }
         recording.streams.push(displayStream);
-
         if (displayStream.getAudioTracks().length === 0) {
-            throw new Error("The selected source did not provide shared audio.");
+            throw new Error("The selected screen or tab did not share audio. Enable audio sharing and choose the softphone output.");
         }
-
-        const microphoneStream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-        });
+        let microphoneStream;
+        try {
+            microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (error) {
+            throw captureError(error, "Microphone");
+        }
         recording.streams.push(microphoneStream);
-
-        if (anyTrackEnded(recording.streams)) {
-            throw new Error("An audio source disconnected during setup.");
+        if (microphoneStream.getAudioTracks().length === 0) {
+            throw new Error("The selected microphone did not provide audio.");
         }
-
         recording.context = new AudioContext();
+        if (recording.context.sampleRate < 16000) {
+            throw new Error("This audio device does not support 16 kHz recording.");
+        }
         await recording.context.audioWorklet.addModule("/static/pcm-worklet.js");
-        recording.node = new AudioWorkletNode(recording.context, "pcm-recorder", {
-            channelCount: 1,
-            channelCountMode: "explicit",
-        });
-
         recording.finishedPromise = new Promise(function (resolve, reject) {
             recording.resolveFinished = resolve;
             recording.rejectFinished = reject;
         });
-
-        recording.node.port.onmessage = function (event) {
-            const data = event.data;
-
-            if (data.chunk) {
-                recording.chunks.push(data.chunk);
-            }
-
-            if (data.done) {
-                completeRecording(recording);
-            }
-        };
-
-        recording.node.onprocessorerror = function () {
-            completeRecording(recording);
-        };
-
-        for (let streamIndex = 0; streamIndex < recording.streams.length; streamIndex++) {
-            connectAudioStream(recording, recording.streams[streamIndex]);
-        }
-
-        recording.node.connect(recording.context.destination);
+        connectSource(recording, microphoneStream, "harm");
+        connectSource(recording, displayStream, "caller");
+        watchTracks(recording, microphoneStream);
+        watchTracks(recording, displayStream);
         await recording.context.resume();
-
-        if (anyTrackEnded(recording.streams)) {
-            throw new Error("An audio source disconnected during setup.");
+        for (const stream of recording.streams) {
+            for (const track of stream.getTracks()) {
+                if (track.readyState === "ended") {
+                    throw new Error("An audio source disconnected during setup.");
+                }
+            }
         }
     } catch (error) {
-        await cleanUpRecording(recording);
+        await cleanUp(recording);
         activeRecording = null;
         throw error;
     }
 }
 
 export function stopWavRecording() {
-    if (activeRecording === null) {
+    if (activeRecording === null || activeRecording.finishedPromise === null) {
         return Promise.reject(new Error("No recording is running."));
     }
-
     const recording = activeRecording;
-    requestRecordingStop(recording);
+    requestStop(recording);
     return recording.finishedPromise;
 }
 
-export function getLatestWav() {
-    return latestWav;
-}
-
-export function markLatestWavDownloaded() {
-    latestWavDownloaded = true;
-}
-
 window.addEventListener("beforeunload", function (event) {
-    const recordingIsRunning = activeRecording !== null;
-    const wavNeedsDownload = latestWav !== null && !latestWavDownloaded;
-
-    if (recordingIsRunning || wavNeedsDownload) {
+    if (activeRecording !== null) {
         event.preventDefault();
         event.returnValue = "";
     }
@@ -245,6 +239,6 @@ window.addEventListener("beforeunload", function (event) {
 
 window.addEventListener("pagehide", function () {
     if (activeRecording !== null) {
-        cleanUpRecording(activeRecording);
+        cleanUp(activeRecording);
     }
 });
