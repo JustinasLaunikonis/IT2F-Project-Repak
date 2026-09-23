@@ -136,3 +136,22 @@ stopButton.addEventListener("click", async function () {
         activityMessage.textContent = error.message;
     }
 });
+
+//show names of all available microphones
+async function listMicrophones() {
+    microphoneList.textContent = ""; //clear old mic list
+
+    microphoneMessage.textContent = "Checking for microphones...";
+    listMicrophonesButton.disabled = true;
+
+    //check if browser supports mediadevices api
+    if (!navigator.mediaDevices) {
+        microphoneMessage.textContent =
+            "This browser doesn't support microphone detection.";
+
+        listMicrophonesButton.disabled = false;
+        return;
+    }
+
+    let microphoneStream = null; //temporary live connection to microphone. here means no connection yet
+}
