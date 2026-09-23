@@ -13,6 +13,12 @@ const testProcessingButton = document.getElementById("test-processing");
 const testCompletedButton = document.getElementById("test-completed");
 const testErrorButton = document.getElementById("test-error");
 
+const listMicrophonesButton = document.getElementById(
+    "list-microphones-button",
+);
+const microphoneMessage = document.getElementById("microphone-message");
+const microphoneList = document.getElementById("microphone-list");
+
 let recordingSessionActive = false; //prevents second recording session from being started
 let stopRequested = false; //prevents stop from being requested more than once
 
@@ -105,4 +111,28 @@ stopButton.addEventListener("click", async function () {
     stopButton.disabled = true;
 
     showState("processing");
+
+    try {
+        //stop recording and create the wav audio
+        await stopWavRecording();
+
+        recordingSessionActive = false;
+        stopRequested = false;
+
+        connectionStatus.textContent = "Connection: Not connected";
+        startButton.disabled = false;
+
+        showState("completed");
+    } catch (error) {
+        //reset the interface if recording cant be stopped
+        recordingSessionActive = false;
+        stopRequested = false;
+
+        connectionStatus.textContent = "Connection: Not connected";
+        startButton.disabled = false;
+        stopButton.disabled = true;
+
+        showState("error");
+        activityMessage.textContent = error.message;
+    }
 });
