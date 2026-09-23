@@ -1,17 +1,103 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Repak transcription</title>
-        <link rel="stylesheet" href="/static/index.css">
-    </head>
-    
-    <body>
-        <main>
-            <h1>Repak transcription</h1>
-            <p>The local application is running.</p>
-            <p>This is the initial application screen. Recording and transcription are not available yet.</p>
-        </main>
-    </body>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Repak transcription</title>
+    <link rel="stylesheet" href="/static/index.css">
+</head>
+
+<body>
+    <main>
+        <h1>Repak live call transcription</h1>
+        <p>The local application is running.</p>
+        <p>This is the initial application screen. Recording and transcription are not available yet.</p>
+
+        <form>
+            <fieldset>
+                <legend>Transcription controls</legend>
+
+                <p id="connection-status">
+                    Connection: Not connected
+                </p>
+
+                <p id="activity-status" class="status status-idle">
+                    Activity: Idle
+                </p>
+
+                <p id="activity-message">
+                    Application waiting to start.
+                </p>
+
+                <div class="controls">
+                    <button id="start-button" type="button">
+                        Start transcription
+                    </button>
+
+                    <button id="stop-button" type="button">
+                        Stop transcription
+                    </button>
+                </div>
+
+                <label for="transcript">Live transcript</label>
+
+                <textarea id="transcript" name="transcript" readonly
+                    placeholder="The live transcript will appear here."></textarea>
+            </fieldset>
+        </form>
+
+        <div class="microphone-inputs">
+            <h2>Available microphones</h2>
+
+            <p>Allow microphone access to see available microphone input names.
+            <p>
+
+                <button id="list-microphones-button" type="button">
+                    List microphones
+                </button>
+
+            <p id="microphone-message">
+                Microphone list not loaded yet.
+            </p>
+
+            <ul id="microphone-list"></ul>
+        </div>
+
+        <div class="state-tester">
+            <h2>Test activity states</h2>
+
+            <p>
+                Click on buttons to preview each application state.
+                <br>
+                Buttons do not start a real recording yet.
+            </p>
+
+            <div class="test-controls">
+                <button id="test-idle" type="button">
+                    Test idle
+                </button>
+
+                <button id="test-recording" type="button">
+                    Test recording
+                </button>
+
+                <button id="test-processing" type="button">
+                    Test processing
+                </button>
+
+                <button id="test-completed" type="button">
+                    Test completed
+                </button>
+
+                <button id="test-error" type="button">
+                    Test error
+                </button>
+            </div>
+        </div>
+    </main>
+    <script type="module" src="/static/index.js"></script>
+    <!-- 'type=module' allows index.js import functions from recorder.js-->
+</body>
+
 </html>

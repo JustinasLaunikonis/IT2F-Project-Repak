@@ -3,6 +3,7 @@ from pathlib import Path
 from docx import Document
 from docx.document import Document as DocumentType
 from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 import json
 import shutil
 import os
@@ -14,9 +15,6 @@ from datetime import datetime
 script_directory = Path(__file__).resolve().parent
 template_docx = script_directory / "template" / "meldingsformulier-template.docx"
 
-class UnreplacedPlaceholdersError(Exception):
-    pass
-
 # using XML to find the text nodes in the Document is the best approach as XML just returns all the text nodes. This
 #   is better than going through paragraphs, tables, footers etc. separately
 def print_unreplaced_placeholders(document):
@@ -24,10 +22,9 @@ def print_unreplaced_placeholders(document):
     unreplaced_placeholders = find_unreplaced_placeholders(document)
 
     if unreplaced_placeholders:
-        error = "The following placeholders were not replaced in the word document:\n"
+        print("Info: The following placeholders were not replaced in the word document:")
         for unreplaced_placeholder in unreplaced_placeholders:
-            error += ("- " + unreplaced_placeholder + "\n")
-        raise UnreplacedPlaceholdersError(error)
+            print("-", unreplaced_placeholder)
     else:
         print("All placeholders were replaced")
 
@@ -51,21 +48,107 @@ def find_unreplaced_placeholders(document):
     for xml_element in xml_elements:
         for paragraph in xml_element.iter(qn("w:p")):
             #turn XML into text. Join text so that a run ending between a placeholder doesn't mess up detection
-            text = "".join(text_node.text or "" for text_node in paragraph.iter(qn("w:t")))
+            text = ""
+            for text_node in paragraph.iter(qn("w:t")):
+                if text_node.text is not None:
+                    text += text_node.text
             # Only text in brackets "[]" is a placeholder in the document, so anything that still has square brackets
             # is a placeholder that hasn't been filled in
             placeholders.update(re.findall(r"\[[^][\r\n]+]", text))
 
     return placeholders
 
+def find_text_position(text_nodes, position):
+    current_position = 0
+    for node_index in range(len(text_nodes)):
+        node_text = text_nodes[node_index].text
+        if node_text is None:
+            node_text = ""
+        next_position = current_position + len(node_text)
+        if position < next_position:
+            return node_index, position - current_position
+        current_position = next_position
+
+    last_index = len(text_nodes) - 1
+    return last_index, len(text_nodes[last_index].text)
+
+
+def set_text_node_text(text_node, value):
+    text_node.text = value
+    if value.startswith(" ") or value.endswith(" "):
+        text_node.set(qn("xml:space"), "preserve")
+
+
+def replace_text_in_paragraph(paragraph, replacement_data):
+    for key, value in replacement_data.items():
+        text_nodes = list(paragraph.iter(qn("w:t")))
+        if not text_nodes:
+            continue
+
+        if key == "":
+            for text_node in text_nodes:
+                if text_node.text is not None:
+                    replacement_text = text_node.text.replace(key, str(value))
+                    set_text_node_text(text_node, replacement_text)
+            continue
+
+        paragraph_text = ""
+        for text_node in text_nodes:
+            if text_node.text is not None:
+                paragraph_text += text_node.text
+
+        match_positions = []
+        search_position = 0
+        while True:
+            match_position = paragraph_text.find(key, search_position)
+            if match_position == -1:
+                break
+            match_positions.append(match_position)
+            search_position = match_position + len(key)
+
+        for match_position in reversed(match_positions):
+            first_index, first_offset = find_text_position(text_nodes, match_position)
+            last_index, last_offset = find_text_position(text_nodes, match_position + len(key) - 1)
+            first_node = text_nodes[first_index]
+            last_node = text_nodes[last_index]
+            if first_index == last_index:
+                original_text = first_node.text
+                replacement_text = original_text[:first_offset] + str(value) + original_text[last_offset + 1:]
+                set_text_node_text(first_node, replacement_text)
+            else:
+                prefix = first_node.text[:first_offset]
+                suffix = last_node.text[last_offset + 1:]
+                set_text_node_text(first_node, prefix + str(value))
+                for node_index in range(first_index + 1, last_index):
+                    set_text_node_text(text_nodes[node_index], "")
+                set_text_node_text(last_node, suffix)
+
+
 def replace_text_in_xml(xml_element, replacement_data):
+    for paragraph in xml_element.iter(qn("w:p")):
+        replace_text_in_paragraph(paragraph, replacement_data)
+
     for text_node in xml_element.iter(qn("w:t")):
         if text_node.text is None:
             continue
 
-        for key, value in replacement_data.items():
-            if key in text_node.text:
-                text_node.text = text_node.text.replace(key, str(value))
+        replacement_text = text_node.text
+
+        replacement_text = replacement_text.replace("\r\n", "\n")
+        replacement_text = replacement_text.replace("\r", "\n")
+        lines = replacement_text.split("\n")
+        text_node.text = lines[0]
+
+        parent = text_node.getparent()
+        insert_at = parent.index(text_node) + 1
+        for line in lines[1:]:
+            break_node = OxmlElement("w:br")
+            parent.insert(insert_at, break_node)
+            insert_at += 1
+            next_text_node = OxmlElement("w:t")
+            next_text_node.text = line
+            parent.insert(insert_at, next_text_node)
+            insert_at += 1
 
 # Handles both .json files and json strings
 def replace_text_in_document(document: DocumentType, text_input : Path | str):
@@ -168,4 +251,3 @@ def convert_json_to_docx(text_input):
 
     # return the file itself
     return Path(working_docx_destination)
-
