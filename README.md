@@ -27,6 +27,19 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser. You should 
 
 **For later runs, open PowerShell in the repository and repeat the final server command.**
 
+## Run the UI status test
+
+First create `.venv` and install `requirements.txt` using the commands above. Install Node.js and npm, then run these commands in PowerShell from the repository folder:
+
+```powershell
+Set-Location "C:\Users\MSI\Desktop\IT2F-Project-Repak"
+npm ci
+npx playwright install chromium
+npm run test:ui
+```
+
+The test starts a local server automatically and checks the visible activity status and error message in Chromium. It tests the status preview buttons and a simulated recording permission failure, without recording audio.
+
 ## Contributing through pull requests
 
 All changes to `main` must go through a pull request (PR). Reviewer approvals are not required, but asking a teammate to review your PR is encouraged.
