@@ -121,8 +121,11 @@ stopButton.addEventListener("click", async function () {
 
         connectionStatus.textContent = "Connection: Not connected";
         startButton.disabled = false;
+        stopButton.disabled = true;
 
-        showState("completed");
+        showState("idle");
+        activityMessage.textContent =
+            "Recording stopped. Transcription is not available yet.";
     } catch (error) {
         //reset the interface if recording cant be stopped
         recordingSessionActive = false;
@@ -194,6 +197,8 @@ async function listMicrophones() {
         if (error.name === "NotAllowedError") {
             microphoneMessage.textContent =
                 "Microphone access was denied. Allow access and try again";
+        } else if (error.name === "NotFoundError") {
+            microphoneMessage.textContent = "No microphone inputs were found";
         } else {
             microphoneMessage.textContent = "Microphones could not be loaded";
         }
