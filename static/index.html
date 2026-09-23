@@ -40,6 +40,17 @@
                     </button>
                 </div>
 
+                <div id="recording-review" hidden>
+                    <h2>Review recordings</h2>
+                    <p>Listen to both channels. Download each file only after confirming that it contains the intended speaker.</p>
+                    <label for="harm-preview">Microphone (Harm)</label>
+                    <audio id="harm-preview" controls></audio>
+                    <a id="harm-download" download="harm.wav">Download harm.wav</a>
+                    <label for="caller-preview">Shared audio (caller)</label>
+                    <audio id="caller-preview" controls></audio>
+                    <a id="caller-download" download="caller.wav">Download caller.wav</a>
+                </div>
+
                 <label for="transcript">Live transcript</label>
 
                 <textarea id="transcript" name="transcript" readonly

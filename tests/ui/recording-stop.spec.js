@@ -91,8 +91,14 @@ test("stopping capture closes every track without claiming transcription", async
 
     await expect(page.locator("#activity-status")).toHaveText("Activity: Idle");
     await expect(page.locator("#activity-message")).toHaveText(
-        "Recording stopped. Transcription is not available yet."
+        "Recording stopped. Review both audio files before downloading. Transcription is not available yet."
     );
+    await expect(page.locator("#harm-download")).toHaveAttribute("download", "harm.wav");
+    await expect(page.locator("#caller-download")).toHaveAttribute("download", "caller.wav");
+    await expect(page.locator("#harm-download")).toHaveAttribute("href", /^blob:/);
+    await expect(page.locator("#caller-download")).toHaveAttribute("href", /^blob:/);
+    await expect(page.locator("#harm-preview")).toHaveAttribute("src", /^blob:/);
+    await expect(page.locator("#caller-preview")).toHaveAttribute("src", /^blob:/);
     await expect(page.locator("#connection-status")).toHaveText("Connection: Not connected");
     await expect(page.locator("#start-button")).toBeEnabled();
     await expect(page.locator("#stop-button")).toBeDisabled();
