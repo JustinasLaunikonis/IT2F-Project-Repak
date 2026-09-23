@@ -82,6 +82,7 @@ test("stopping capture closes every track without claiming transcription", async
     });
 
     await page.goto("/");
+    await page.locator("#include-caller").check();
     await page.locator("#start-button").click();
 
     await expect(page.locator("#activity-status")).toHaveText("Activity: Recording");

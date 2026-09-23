@@ -11,7 +11,7 @@ test("status preview buttons show each state and its message", async function ({
     await expect(message).toHaveText("Application waiting to start.");
 
     const states = [
-        { button: "#test-recording", name: "Recording", message: "Recording the call" },
+        { button: "#test-recording", name: "Recording", message: "Recording your microphone" },
         { button: "#test-processing", name: "Processing", message: "Processing the recording" },
         { button: "#test-completed", name: "Completed", message: "Transcription completed successfully" },
         { button: "#test-error", name: "Error", message: "Error - something went wrong while recording" },
@@ -28,8 +28,8 @@ test("status preview buttons show each state and its message", async function ({
 
 test("a denied recording request shows the real error state", async function ({ page }) {
     await page.addInitScript(function () {
-        navigator.mediaDevices.getDisplayMedia = async function () {
-            throw new Error("Screen sharing permission denied");
+        navigator.mediaDevices.getUserMedia = async function () {
+            throw new Error("Microphone permission denied");
         };
     });
 
@@ -38,7 +38,7 @@ test("a denied recording request shows the real error state", async function ({ 
 
     await expect(page.locator("#activity-status")).toHaveText("Activity: Error");
     await expect(page.locator("#activity-status")).toHaveClass("status status-error");
-    await expect(page.locator("#activity-message")).toHaveText("Screen sharing permission denied");
+    await expect(page.locator("#activity-message")).toHaveText("Microphone permission denied");
     await expect(page.locator("#connection-status")).toHaveText("Connection: Not connected");
     await expect(page.locator("#start-button")).toBeEnabled();
     await expect(page.locator("#stop-button")).toBeDisabled();

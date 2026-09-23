@@ -30,15 +30,20 @@ async function finish(recording) {
         if (recording.error !== null) {
             throw recording.error;
         }
-        if (recording.harmChunks.length === 0 || recording.callerChunks.length === 0) {
-            throw new Error("Both audio sources must contain audio. Check the microphone and shared audio.");
+        if (recording.harmChunks.length === 0) {
+            throw new Error("The microphone recording contains no audio. Check the microphone and try again.");
+        }
+        if (recording.includeCaller && recording.callerChunks.length === 0) {
+            throw new Error("The caller recording contains no audio. Check the shared audio and try again.");
         }
         const harmData = encodeWav(recording.harmChunks, 16000);
-        const callerData = encodeWav(recording.callerChunks, 16000);
         const files = {
             harm: new Blob([harmData], { type: "audio/wav" }),
-            caller: new Blob([callerData], { type: "audio/wav" }),
         };
+        if (recording.includeCaller) {
+            const callerData = encodeWav(recording.callerChunks, 16000);
+            files.caller = new Blob([callerData], { type: "audio/wav" });
+        }
         recording.resolveFinished(files);
     } catch (error) {
         recording.rejectFinished(error);
@@ -124,12 +129,12 @@ function watchTracks(recording, stream) {
     }
 }
 
-function checkSupport() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-        throw new Error("This browser does not support shared audio capture.");
-    }
-    if (!navigator.mediaDevices.getUserMedia) {
+function checkSupport(includeCaller) {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error("This browser does not support microphone capture.");
+    }
+    if (includeCaller && !navigator.mediaDevices.getDisplayMedia) {
+        throw new Error("This browser does not support shared audio capture.");
     }
     if (!window.AudioWorkletNode) {
         throw new Error("This browser does not support AudioWorklet.");
@@ -138,7 +143,7 @@ function checkSupport() {
 
 function captureError(error, source) {
     if (error.name === "NotAllowedError") {
-        return new Error(source + " permission was denied or sharing was cancelled.");
+        return new Error(source + " permission was denied or the request was cancelled.");
     }
     if (error.name === "NotFoundError") {
         return new Error("No " + source.toLowerCase() + " source was found.");
@@ -146,11 +151,11 @@ function captureError(error, source) {
     return error;
 }
 
-export async function startWavRecording(onUnexpectedStop) {
+export async function startWavRecording(onUnexpectedStop, includeCaller = false) {
     if (activeRecording !== null) {
         throw new Error("A recording is already running.");
     }
-    checkSupport();
+    checkSupport(includeCaller);
     const recording = {
         callerChunks: [],
         context: null,
@@ -159,6 +164,7 @@ export async function startWavRecording(onUnexpectedStop) {
         finished: false,
         finishedPromise: null,
         harmChunks: [],
+        includeCaller: includeCaller,
         nodes: [],
         onUnexpectedStop: onUnexpectedStop,
         rejectFinished: null,
@@ -169,19 +175,21 @@ export async function startWavRecording(onUnexpectedStop) {
     };
     activeRecording = recording;
     try {
-        let displayStream;
-        try {
-            displayStream = await navigator.mediaDevices.getDisplayMedia({
-                audio: true,
-                systemAudio: "include",
-                video: true,
-            });
-        } catch (error) {
-            throw captureError(error, "Shared audio");
-        }
-        recording.streams.push(displayStream);
-        if (displayStream.getAudioTracks().length === 0) {
-            throw new Error("The selected screen or tab did not share audio. Enable audio sharing and choose the softphone output.");
+        let displayStream = null;
+        if (includeCaller) {
+            try {
+                displayStream = await navigator.mediaDevices.getDisplayMedia({
+                    audio: true,
+                    systemAudio: "include",
+                    video: true,
+                });
+            } catch (error) {
+                throw captureError(error, "Shared audio");
+            }
+            recording.streams.push(displayStream);
+            if (displayStream.getAudioTracks().length === 0) {
+                throw new Error("The selected screen or tab did not share audio. Enable audio sharing and choose the softphone output.");
+            }
         }
         let microphoneStream;
         try {
@@ -203,9 +211,11 @@ export async function startWavRecording(onUnexpectedStop) {
             recording.rejectFinished = reject;
         });
         connectSource(recording, microphoneStream, "harm");
-        connectSource(recording, displayStream, "caller");
         watchTracks(recording, microphoneStream);
-        watchTracks(recording, displayStream);
+        if (includeCaller) {
+            connectSource(recording, displayStream, "caller");
+            watchTracks(recording, displayStream);
+        }
         await recording.context.resume();
         for (const stream of recording.streams) {
             for (const track of stream.getTracks()) {
