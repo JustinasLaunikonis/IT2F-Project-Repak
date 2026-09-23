@@ -123,6 +123,7 @@ stopButton.addEventListener("click", async function () {
         startButton.disabled = false;
 
         showState("completed");
+
     } catch (error) {
         //reset the interface if recording cant be stopped
         recordingSessionActive = false;
@@ -154,4 +155,32 @@ async function listMicrophones() {
     }
 
     let microphoneStream = null; //temporary live connection to microphone. here means no connection yet
+
+    try {
+        microphoneStream = await navigator.mediaDevices.getUserMedia({ //ask user for temporary microphone permission
+        audio: true
+        });
+
+        const devices = await navigator.mediaDevices.enumerateDevices(); //give mics connected to the pc (count/list them one by one - enumerate)
+       
+        let microphoneCount = 0;
+
+        //go through all connected media devices
+        for(const device of devices){
+            if(device.kind === "audioinput"){ //audioinput means microphone (mediadevices api standard)
+                microphoneCount++;
+
+                const listItem = document.createElement("li");
+
+                if(device.label){
+                    listItem.textContent = device.label;
+                }else{
+                    listItem.textContent = "Microphone" + microphoneCount;
+                }
+
+                microphoneList.appendChild(listItem);
+            }
+        }
+        
+    }
 }
