@@ -148,7 +148,7 @@ test("microphone and caller become separate 16 kHz mono WAV files", async functi
     await page.goto("/");
     const result = await page.evaluate(async function () {
         const recorder = await import("/static/recorder.js");
-        await recorder.startWavRecording(undefined, true);
+        await recorder.startWavRecording(undefined, true, "test-microphone");
         const files = await recorder.stopWavRecording();
         const output = {};
         for (const name of ["harm", "caller"]) {
@@ -214,7 +214,7 @@ test("missing shared audio stops acquired tracks and permits another attempt", a
         const errors = [];
         for (let attempt = 0; attempt < 2; attempt++) {
             try {
-                await recorder.startWavRecording(undefined, true);
+                await recorder.startWavRecording(undefined, true, "test-microphone");
             } catch (error) {
                 errors.push(error.message);
             }
