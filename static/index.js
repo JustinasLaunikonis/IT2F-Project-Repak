@@ -70,10 +70,14 @@ function showRecordingReview(files) {
 function handleUnexpectedStop(error, files) {
     recordingSessionActive = false;
     stopRequested = false;
+
     connectionStatus.textContent = "Connection: Not connected";
+
     startButton.disabled = false;
     stopButton.disabled = true;
+
     includeCaller.disabled = false;
+
     microphoneSelect.disabled = false;
     listMicrophonesButton.disabled = false;
 
@@ -167,6 +171,7 @@ startButton.addEventListener("click", async function () {
 
     startButton.disabled = true;
     stopButton.disabled = true;
+
     includeCaller.disabled = true;
 
     microphoneSelect.disabled = true;
@@ -194,9 +199,14 @@ startButton.addEventListener("click", async function () {
         recordingSessionActive = false;
 
         connectionStatus.textContent = "Connection: Not connected";
+
         startButton.disabled = false;
-        includeCaller.disabled = false;
         stopButton.disabled = true;
+
+        includeCaller.disabled = false;
+
+        microphoneSelect.disabled = false;
+        listMicrophonesButton.disabled = false;
 
         showState("error");
         activityMessage.textContent = error.message;
@@ -223,9 +233,11 @@ stopButton.addEventListener("click", async function () {
         stopRequested = false;
 
         connectionStatus.textContent = "Connection: Not connected";
+
         startButton.disabled = false;
-        includeCaller.disabled = false;
         stopButton.disabled = true;
+
+        includeCaller.disabled = false;
 
         showState("idle");
         activityMessage.textContent =
@@ -240,9 +252,14 @@ stopButton.addEventListener("click", async function () {
         stopRequested = false;
 
         connectionStatus.textContent = "Connection: Not connected";
+
         startButton.disabled = false;
-        includeCaller.disabled = false;
         stopButton.disabled = true;
+
+        includeCaller.disabled = false;
+
+        microphoneSelect.disabled = false;
+        listMicrophonesButton.disabled = false;
 
         showState("error");
         activityMessage.textContent = error.message;
@@ -251,8 +268,10 @@ stopButton.addEventListener("click", async function () {
 
 //show names of all available microphones
 async function listMicrophones() {
-    microphoneList.textContent = ""; //clear old mic list
+    microphoneSelect.innerHTML =
+        '<option value="">Choose a microphone</option>'; //clear old mic options
 
+    microphoneSelect.disabled = true;
     microphoneMessage.textContent = "Checking for microphones...";
     listMicrophonesButton.disabled = true;
 
@@ -283,7 +302,11 @@ async function listMicrophones() {
                 //audioinput means microphone (mediadevices api standard)
                 microphoneCount++;
 
-                const listItem = document.createElement("li");
+                //create an option for this microphone
+                const microphoneOption = document.createElement("option");
+
+                //save the mic id inside the option
+                microphoneOption.value = device.deviceId;
 
                 if (device.label) {
                     listItem.textContent = device.label;
@@ -291,7 +314,7 @@ async function listMicrophones() {
                     listItem.textContent = "Microphone" + microphoneCount;
                 }
 
-                microphoneList.appendChild(listItem); //once device is found, add it to the list and show it
+                microphoneSelect.appendChild(microphoneOption); //show the microphone in the dropdown
             }
         }
 
