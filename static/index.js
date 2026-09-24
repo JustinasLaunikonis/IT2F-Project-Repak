@@ -239,6 +239,9 @@ stopButton.addEventListener("click", async function () {
 
         includeCaller.disabled = false;
 
+        microphoneSelect.disabled = false;
+        listMicrophonesButton.disabled = false;
+
         showState("idle");
         activityMessage.textContent =
             "Recording stopped. Review your microphone audio before downloading. Transcription is not available yet.";
@@ -309,9 +312,10 @@ async function listMicrophones() {
                 microphoneOption.value = device.deviceId;
 
                 if (device.label) {
-                    listItem.textContent = device.label;
+                    microphoneOption.textContent = device.label;
                 } else {
-                    listItem.textContent = "Microphone" + microphoneCount;
+                    microphoneOption.textContent =
+                        "Microphone" + microphoneCount;
                 }
 
                 microphoneSelect.appendChild(microphoneOption); //show the microphone in the dropdown
