@@ -35,6 +35,6 @@ def export_docx_file(request: DocxFileExportRequest):
 
     return FileResponse(
         path=output_path,
-        filename=output_path.name
+        filename=output_path.name,
+        headers={"filename": output_path.name}
     )
-
