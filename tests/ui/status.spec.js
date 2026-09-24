@@ -58,12 +58,26 @@ test("status preview buttons show each state and its message", async function ({
 
 test("a denied recording request shows the real error state", async function ({ page }) {
     await page.addInitScript(function () {
+        let microphoneRequests = 0;
+        navigator.mediaDevices.enumerateDevices = async function () {
+            return [{ kind: "audioinput", label: "Test microphone", deviceId: "test-microphone" }];
+        };
         navigator.mediaDevices.getUserMedia = async function () {
+            microphoneRequests++;
+            if (microphoneRequests === 1) {
+                return {
+                    getTracks: function () {
+                        return [{ stop: function () {} }];
+                    }
+                };
+            }
             throw new Error("Microphone permission denied");
         };
     });
 
     await page.goto("/");
+    await page.locator("#list-microphones-button").click();
+    await page.locator("#microphone-select").selectOption("test-microphone");
     await page.locator("#start-button").click();
 
     await expect(page.locator("#activity-status")).toHaveText("Activity: Error");

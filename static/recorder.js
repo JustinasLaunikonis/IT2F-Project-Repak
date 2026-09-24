@@ -31,10 +31,14 @@ async function finish(recording) {
             throw recording.error;
         }
         if (recording.harmChunks.length === 0) {
-            throw new Error("The microphone recording contains no audio. Check the microphone and try again.");
+            throw new Error(
+                "The microphone recording contains no audio. Check the microphone and try again.",
+            );
         }
         if (recording.includeCaller && recording.callerChunks.length === 0) {
-            throw new Error("The caller recording contains no audio. Check the shared audio and try again.");
+            throw new Error(
+                "The caller recording contains no audio. Check the shared audio and try again.",
+            );
         }
         const harmData = encodeWav(recording.harmChunks, 16000);
         const files = {
@@ -70,15 +74,18 @@ function reportUnexpectedStop(recording) {
         return;
     }
     recording.unexpectedStopReported = true;
-    recording.finishedPromise.then(function (files) {
-        if (typeof recording.onUnexpectedStop === "function") {
-            recording.onUnexpectedStop(null, files);
-        }
-    }, function (error) {
-        if (typeof recording.onUnexpectedStop === "function") {
-            recording.onUnexpectedStop(error, null);
-        }
-    });
+    recording.finishedPromise.then(
+        function (files) {
+            if (typeof recording.onUnexpectedStop === "function") {
+                recording.onUnexpectedStop(null, files);
+            }
+        },
+        function (error) {
+            if (typeof recording.onUnexpectedStop === "function") {
+                recording.onUnexpectedStop(error, null);
+            }
+        },
+    );
 }
 
 function connectSource(recording, stream, speaker) {
@@ -143,18 +150,33 @@ function checkSupport(includeCaller) {
 
 function captureError(error, source) {
     if (error.name === "NotAllowedError") {
-        return new Error(source + " permission was denied or the request was cancelled.");
+        return new Error(
+            source + " permission was denied or the request was cancelled.",
+        );
     }
     if (error.name === "NotFoundError") {
         return new Error("No " + source.toLowerCase() + " source was found.");
     }
+
+    if (error.name === "OverconstrainedError") {
+        return new Error("Selected microphone is no longer available.");
+    }
     return error;
 }
 
-export async function startWavRecording(onUnexpectedStop, includeCaller = false) {
+export async function startWavRecording(
+    onUnexpectedStop,
+    includeCaller = false,
+    microphoneDeviceId,
+) {
     if (activeRecording !== null) {
         throw new Error("A recording is already running.");
     }
+
+    if (!microphoneDeviceId) {
+        throw new Error("Choose a microphone before recording.");
+    }
+
     checkSupport(includeCaller);
     const recording = {
         callerChunks: [],
@@ -188,12 +210,21 @@ export async function startWavRecording(onUnexpectedStop, includeCaller = false)
             }
             recording.streams.push(displayStream);
             if (displayStream.getAudioTracks().length === 0) {
-                throw new Error("The selected screen or tab did not share audio. Enable audio sharing and choose the softphone output.");
+                throw new Error(
+                    "The selected screen or tab did not share audio. Enable audio sharing and choose the softphone output.",
+                );
             }
         }
         let microphoneStream;
         try {
-            microphoneStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            microphoneStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    //use the microphone selected by user
+                    deviceId: {
+                        exact: microphoneDeviceId,
+                    },
+                },
+            });
         } catch (error) {
             throw captureError(error, "Microphone");
         }
@@ -203,9 +234,13 @@ export async function startWavRecording(onUnexpectedStop, includeCaller = false)
         }
         recording.context = new AudioContext();
         if (recording.context.sampleRate < 16000) {
-            throw new Error("This audio device does not support 16 kHz recording.");
+            throw new Error(
+                "This audio device does not support 16 kHz recording.",
+            );
         }
-        await recording.context.audioWorklet.addModule("/static/pcm-worklet.js");
+        await recording.context.audioWorklet.addModule(
+            "/static/pcm-worklet.js",
+        );
         recording.finishedPromise = new Promise(function (resolve, reject) {
             recording.resolveFinished = resolve;
             recording.rejectFinished = reject;
@@ -220,7 +255,9 @@ export async function startWavRecording(onUnexpectedStop, includeCaller = false)
         for (const stream of recording.streams) {
             for (const track of stream.getTracks()) {
                 if (track.readyState === "ended") {
-                    throw new Error("An audio source disconnected during setup.");
+                    throw new Error(
+                        "An audio source disconnected during setup.",
+                    );
                 }
             }
         }
