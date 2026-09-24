@@ -20,13 +20,23 @@ test("default recording requests only microphone and releases it after review", 
         }
 
         const microphoneAudio = makeTrack("microphone audio");
+        navigator.mediaDevices.enumerateDevices = async function () {
+            return [{ kind: "audioinput", label: "Test microphone", deviceId: "test-microphone" }];
+        };
         window.displayRequests = 0;
         navigator.mediaDevices.getDisplayMedia = async function () {
             window.displayRequests++;
             throw new Error("Screen sharing must not be requested");
         };
 
-        navigator.mediaDevices.getUserMedia = async function () {
+        navigator.mediaDevices.getUserMedia = async function (constraints) {
+            if (constraints.audio === true) {
+                return {
+                    getTracks: function () {
+                        return [{ stop: function () {} }];
+                    }
+                };
+            }
             return {
                 getAudioTracks: function () {
                     return [microphoneAudio];
@@ -78,6 +88,8 @@ test("default recording requests only microphone and releases it after review", 
     });
 
     await page.goto("/");
+    await page.locator("#list-microphones-button").click();
+    await page.locator("#microphone-select").selectOption("test-microphone");
     await page.locator("#start-button").click();
 
     await expect(page.locator("#activity-status")).toHaveText("Activity: Recording");
@@ -123,8 +135,8 @@ test("default recording requests only microphone and releases it after review", 
     await page.evaluate(function () {
         // A new request represents reconnecting the test microphone.
         const originalRequest = navigator.mediaDevices.getUserMedia;
-        navigator.mediaDevices.getUserMedia = async function () {
-            const stream = await originalRequest();
+        navigator.mediaDevices.getUserMedia = async function (constraints) {
+            const stream = await originalRequest(constraints);
             stream.getAudioTracks()[0].readyState = "live";
             return stream;
         };
@@ -148,6 +160,9 @@ test("microphone-only works without display capture support and retries after an
     await page.addInitScript(function () {
         navigator.mediaDevices.getDisplayMedia = undefined;
         window.stoppedMicrophones = 0;
+        navigator.mediaDevices.enumerateDevices = async function () {
+            return [{ kind: "audioinput", label: "Test microphone", deviceId: "test-microphone" }];
+        };
         navigator.mediaDevices.getUserMedia = async function () {
             return {
                 getAudioTracks: function () { return []; },
@@ -160,6 +175,8 @@ test("microphone-only works without display capture support and retries after an
         };
     });
     await page.goto("/");
+    await page.locator("#list-microphones-button").click();
+    await page.locator("#microphone-select").selectOption("test-microphone");
     for (let attempt = 0; attempt < 2; attempt++) {
         await page.locator("#start-button").click();
         await expect(page.locator("#activity-message")).toHaveText("The selected microphone did not provide audio.");
@@ -168,5 +185,5 @@ test("microphone-only works without display capture support and retries after an
         await expect(page.locator("#recording-review")).toBeHidden();
     }
     const stopped = await page.evaluate(function () { return window.stoppedMicrophones; });
-    expect(stopped).toBe(2);
+    expect(stopped).toBe(3);
 });

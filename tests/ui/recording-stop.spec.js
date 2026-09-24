@@ -18,6 +18,9 @@ test("stopping capture closes every track without claiming transcription", async
         const sharedAudio = makeTrack("shared audio");
         const sharedVideo = makeTrack("shared video");
         const microphoneAudio = makeTrack("microphone audio");
+        navigator.mediaDevices.enumerateDevices = async function () {
+            return [{ kind: "audioinput", label: "Test microphone", deviceId: "test-microphone" }];
+        };
 
         navigator.mediaDevices.getDisplayMedia = async function () {
             return {
@@ -30,7 +33,14 @@ test("stopping capture closes every track without claiming transcription", async
             };
         };
 
-        navigator.mediaDevices.getUserMedia = async function () {
+        navigator.mediaDevices.getUserMedia = async function (constraints) {
+            if (constraints.audio === true) {
+                return {
+                    getTracks: function () {
+                        return [{ stop: function () {} }];
+                    }
+                };
+            }
             return {
                 getAudioTracks: function () {
                     return [microphoneAudio];
@@ -82,6 +92,8 @@ test("stopping capture closes every track without claiming transcription", async
     });
 
     await page.goto("/");
+    await page.locator("#list-microphones-button").click();
+    await page.locator("#microphone-select").selectOption("test-microphone");
     await page.locator("#include-caller").check();
     await page.locator("#start-button").click();
 
