@@ -65,8 +65,11 @@ def merge_channels(channel_one, channel_two):
     return speaker_turns
 
 
-def save_speaker_turns(speaker_turns, output_file_name):
-    with open(output_file_name, "w", encoding="utf-8") as output_file:
+def save_speaker_turns(speaker_turns, output_file_name, confirmed_by_operator):
+    if confirmed_by_operator is not True:
+        raise ValueError("Confirm or edit the transcript before saving.")
+
+    with open(output_file_name, "x", encoding="utf-8") as output_file:
         json.dump(
             speaker_turns,
             output_file,
