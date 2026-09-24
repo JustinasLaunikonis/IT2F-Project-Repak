@@ -1,6 +1,11 @@
 @echo off
 
 cd /d "%~dp0"
+if errorlevel 1 (
+    echo Could not open the application folder.
+    pause
+    exit /b 1
+)
 
 if not exist ".venv\Scripts\python.exe" (
     echo The Python environment was not found.
@@ -18,4 +23,5 @@ echo Press Ctrl+C to stop the application.
 if errorlevel 1 (
     echo The application failed to start.
     pause
+    exit /b 1
 )
