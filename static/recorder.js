@@ -157,6 +157,10 @@ function captureError(error, source) {
     if (error.name === "NotFoundError") {
         return new Error("No " + source.toLowerCase() + " source was found.");
     }
+
+    if (error.name === "OverconstrainedError") {
+        return new Error("Selected microphone is no longer available.");
+    }
     return error;
 }
 
@@ -170,7 +174,7 @@ export async function startWavRecording(
     }
 
     if (!microphoneDeviceId) {
-        throw new Error("Choose a microphone before reading.");
+        throw new Error("Choose a microphone before recording.");
     }
 
     checkSupport(includeCaller);
