@@ -322,7 +322,9 @@ async function listMicrophones() {
             microphoneMessage.textContent = "No microphone inputs were found";
         } else {
             microphoneMessage.textContent =
-                microphoneCount + " microphone inputs found";
+                microphoneCount + " microphone inputs found. Choose one below";
+
+            microphoneSelect.disabled = false; //this allows user to choose their microphone
         }
     } catch (error) {
         //show message when permissions are denied
