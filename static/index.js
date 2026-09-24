@@ -125,7 +125,7 @@ async function submitCallData() {
         // download generated file
         const fileDownloadLink = document.createElement("a");
         fileDownloadLink.href = fileDownloadUrl;
-        fileDownloadLink.download = "call-report.docx";
+        fileDownloadLink.download = docxGeneratorResponse.headers.get("filename");
         document.body.appendChild(fileDownloadLink);
         fileDownloadLink.click();
         fileDownloadLink.remove();
