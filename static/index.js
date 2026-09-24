@@ -6,6 +6,14 @@ const connectionStatus = document.getElementById("connection-status");
 
 const startButton = document.getElementById("start-button");
 const stopButton = document.getElementById("stop-button");
+
+const stateTester = document.querySelector(".state-tester");
+const testIdleButton = document.getElementById("test-idle");
+const testRecordingButton = document.getElementById("test-recording");
+const testProcessingButton = document.getElementById("test-processing");
+const testCompletedButton = document.getElementById("test-completed");
+const testErrorButton = document.getElementById("test-error");
+
 const includeCaller = document.getElementById("include-caller");
 const callerReview = document.getElementById("caller-review");
 const recordingReview = document.getElementById("recording-review");
@@ -13,8 +21,17 @@ const harmPreview = document.getElementById("harm-preview");
 const callerPreview = document.getElementById("caller-preview");
 const harmDownload = document.getElementById("harm-download");
 const callerDownload = document.getElementById("caller-download");
+
+const microphoneSelect = document.getElementById("microphone-select");
+const microphoneMessage = document.getElementById("microphone-message");
+const listMicrophonesButton = document.getElementById(
+    "list-microphones-button",
+);
+
 let harmUrl = null;
 let callerUrl = null;
+let recordingSessionActive = false; //prevents second recording session from being started
+let stopRequested = false; //prevents stop from being requested more than once
 
 function clearRecordingReview() {
     recordingReview.hidden = true;
@@ -23,10 +40,12 @@ function clearRecordingReview() {
     callerPreview.removeAttribute("src");
     harmDownload.removeAttribute("href");
     callerDownload.removeAttribute("href");
+
     if (harmUrl !== null) {
         URL.revokeObjectURL(harmUrl);
         harmUrl = null;
     }
+
     if (callerUrl !== null) {
         URL.revokeObjectURL(callerUrl);
         callerUrl = null;
@@ -37,12 +56,14 @@ function showRecordingReview(files) {
     harmUrl = URL.createObjectURL(files.harm);
     harmPreview.src = harmUrl;
     harmDownload.href = harmUrl;
+
     if (files.caller !== undefined) {
         callerUrl = URL.createObjectURL(files.caller);
         callerPreview.src = callerUrl;
         callerDownload.href = callerUrl;
         callerReview.hidden = false;
     }
+
     recordingReview.hidden = false;
 }
 
@@ -51,8 +72,11 @@ function handleUnexpectedStop(error, files) {
     stopRequested = false;
     connectionStatus.textContent = "Connection: Not connected";
     startButton.disabled = false;
-    includeCaller.disabled = false;
     stopButton.disabled = true;
+    includeCaller.disabled = false;
+    microphoneSelect.disabled = false;
+    listMicrophonesButton.disabled = false;
+
     if (error !== null) {
         showState("error");
         activityMessage.textContent = error.message;
@@ -65,20 +89,6 @@ function handleUnexpectedStop(error, files) {
 }
 
 window.addEventListener("pagehide", clearRecordingReview);
-
-const stateTester = document.querySelector(".state-tester");
-const testIdleButton = document.getElementById("test-idle");
-const testRecordingButton = document.getElementById("test-recording");
-const testProcessingButton = document.getElementById("test-processing");
-const testCompletedButton = document.getElementById("test-completed");
-const testErrorButton = document.getElementById("test-error");
-
-const microphoneSelect = document.getElementById("microphone-select");
-const microphoneMessage = document.getElementById("microphone-message");
-const microphoneList = document.getElementById("microphone-list");
-
-let recordingSessionActive = false; //prevents second recording session from being started
-let stopRequested = false; //prevents stop from being requested more than once
 
 //show test activity controls only when the URL includes ?debug=true
 const urlParameters = new URLSearchParams(window.location.search);
@@ -156,8 +166,11 @@ startButton.addEventListener("click", async function () {
     clearRecordingReview();
 
     startButton.disabled = true;
-    includeCaller.disabled = true;
     stopButton.disabled = true;
+    includeCaller.disabled = true;
+
+    microphoneSelect.disabled = true;
+    listMicrophonesButton.disabled = true;
 
     activityMessage.textContent = "Please allow microphone access";
     if (includeCaller.checked) {
@@ -167,7 +180,11 @@ startButton.addEventListener("click", async function () {
 
     try {
         //try to start recorder
-        await startWavRecording(handleUnexpectedStop, includeCaller.checked);
+        await startWavRecording(
+            handleUnexpectedStop,
+            includeCaller.checked,
+            selectedMicrophoneId,
+        );
 
         connectionStatus.textContent = "Connection: Connected";
         stopButton.disabled = false;
