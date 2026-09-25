@@ -58,10 +58,15 @@ def transcribe_audio(audio_path):
     model_name = model_override or (GPU_MODEL if device == "cuda" else CPU_MODEL)
     compute_type = "float16" if device == "cuda" else "int8"
 
-    # Loading the model can download it on first use, so only do this for an
-    # explicit transcription request, never while importing this module.
+    # install.bat downloads models before transcription. Keep audio processing
+    # offline even if the requested model is missing from the local cache.
     try:
-        model = WhisperModel(model_name, device=device, compute_type=compute_type)
+        model = WhisperModel(
+            model_name,
+            device=device,
+            compute_type=compute_type,
+            local_files_only=True,
+        )
     except (OSError, RuntimeError) as error:
         if device != "cuda":
             raise
@@ -69,7 +74,12 @@ def transcribe_audio(audio_path):
         device = "cpu"
         model_name = model_override or CPU_MODEL
         compute_type = "int8"
-        model = WhisperModel(model_name, device=device, compute_type=compute_type)
+        model = WhisperModel(
+            model_name,
+            device=device,
+            compute_type=compute_type,
+            local_files_only=True,
+        )
 
     print(f"Using Whisper model: {model_name}; device: {device}; compute type: {compute_type}")
     print(f"Transcribing audio: {audio_path}")
