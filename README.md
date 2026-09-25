@@ -1,49 +1,37 @@
 # IT2F Project Repak
 
-## Run the local application
+## Set up and run on Windows
 
-Install Python 3.10 or newer and make sure the `python` command is available in PowerShell
+1. Install [Python 3.10 or newer](https://www.python.org/downloads/windows/). During installation, select **Add python.exe to PATH**.
+2. Download this project and unzip it to a folder on this computer. Keep all project files together.
+3. With an internet connection, double-click `install.bat` in that folder. It creates a private Python environment, installs the required packages, and downloads the Whisper model. If CUDA is detected, it also downloads the smaller CPU model in case GPU loading fails. The first installation can take several minutes and requires space for the packages and models. Wait for **Installation completed successfully**.
+4. Double-click `run.bat`. Leave its window open. Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in a browser on the same computer. Press **Ctrl+C** in the window to stop the application.
 
-Run these commands in PowerShell. Change the repository path if your clone is elsewhere.
-
-```powershell
-# Open your local repository folder.
-Set-Location "C:\Users\MSI\Desktop\IT2F-Project-Repak"
-
-# Check that the installed Python version is 3.10 or newer.
-python --version
-
-# Create an isolated Python environment for this project.
-python -m venv .venv
-
-# Install the applications dependencies into that environment.
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-
-# Start the server on your computer, using port 8000.
-.\.venv\Scripts\python.exe -m uvicorn main:app --host 127.0.0.1 --port 8000
-```
-
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser. You should see **Repak transcription** and **The local application is running.** Keep the terminal open while using the page. Press **Ctrl+C** in that terminal to stop the server.
-
-**For later runs, open PowerShell in the repository and repeat the final server command.**
+For later runs, use only `run.bat`. If installation stops with an error, read the message in its window and run `install.bat` again after fixing the problem. The model download needs internet during installation; audio processing is local. The current browser page is a local application preview. The full recording and transcription flow is still being developed.
 
 ## Run local Whisper transcription
 
 The standalone transcription command selects `large-v3-turbo` with CUDA and
 `float16` when an NVIDIA GPU is available. On a CPU machine it uses `small`
 with `int8` and prints a warning. It logs the model, device, and compute type
-before transcribing. The first run downloads the selected model.
+before transcribing. `install.bat` downloads the selected model ahead of time.
+Transcription uses only local model files. If a model is missing, run
+`install.bat` again while connected to the internet.
 
 ```powershell
 .\.venv\Scripts\python.exe whisper_demo.py path\to\recording.wav
 ```
 
 Set `WHISPER_DEVICE` to `auto` (default), `cuda`, or `cpu`. Set `WHISPER_MODEL`
-to override the model for either device. For example:
+to override the model for either device. The override may also be a local model
+folder. Run `install.bat` with the same settings before transcribing; it
+downloads a named model or checks an existing local folder for the required
+model files. For example:
 
 ```powershell
 $env:WHISPER_DEVICE = "cpu"
 $env:WHISPER_MODEL = "base"
+.\install.bat
 .\.venv\Scripts\python.exe whisper_demo.py path\to\recording.wav
 ```
 
@@ -61,10 +49,9 @@ before starting Python. CPU transcription does not require these GPU libraries.
 
 ## Run the UI status test
 
-First create `.venv` and install `requirements.txt` using the commands above. Install Node.js and npm, then run these commands in PowerShell from the repository folder:
+First run `install.bat`. Install Node.js and npm, then run these commands in PowerShell from the project folder:
 
 ```powershell
-Set-Location "C:\Users\MSI\Desktop\IT2F-Project-Repak"
 npm ci
 npx playwright install chromium
 npm run test:ui

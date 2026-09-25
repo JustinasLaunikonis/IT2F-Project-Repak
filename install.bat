@@ -50,7 +50,18 @@ if errorlevel 1 (
     exit /b 1
 )
 
+echo Downloading the Whisper model for this computer...
+".venv\Scripts\python.exe" download_whisper_model.py
+
+if errorlevel 1 (
+    echo Failed to download the Whisper model.
+    echo Check your internet connection and run install.bat again.
+    pause
+    exit /b 1
+)
+
 echo Installation completed successfully.
+echo Double-click run.bat to start the application.
 pause
 exit /b 0
 
