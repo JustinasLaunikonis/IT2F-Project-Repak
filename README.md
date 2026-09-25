@@ -27,29 +27,18 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser. You should 
 
 **For later runs, open PowerShell in the repository and repeat the final server command.**
 
-## Local Whisper transcription
+## Run the UI status test
 
-The project includes a local speech-to-text script using `faster-whisper`.
-It uses a CUDA-compatible NVIDIA GPU when available and otherwise falls back
-to the CPU.
-
-Install the dependencies:
+First create `.venv` and install `requirements.txt` using the commands above. Install Node.js and npm, then run these commands in PowerShell from the repository folder:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+Set-Location "C:\Users\MSI\Desktop\IT2F-Project-Repak"
+npm ci
+npx playwright install chromium
+npm run test:ui
 ```
 
-Run the script with the path to an audio file:
-
-```powershell
-.\.venv\Scripts\python.exe test_whisper.py "C:\Path\To\audio.m4a"
-```
-
-Replace the example path with an existing audio file on your computer.
-
-On the first run, the `large-v3` Whisper model is downloaded automatically and
-cached locally. This requires an internet connection. The model is not stored
-in the repository.
+The test starts a local server automatically and checks the visible activity status and error message in Chromium. It tests the status preview buttons and a simulated recording permission failure, without recording audio.
 
 ## Contributing through pull requests
 

@@ -9,6 +9,9 @@ CLAUDE.local.md
 
 # Local Python environment and generated cache files.
 .venv/
+node_modules/
+playwright-report/
+test-results/
 __pycache__/
 *.pyc
 
@@ -16,4 +19,5 @@ __pycache__/
 .idea/
 
 # docx_generator output
-docx_generator/output.docx
+docx_generator/output*
+docx_generator/outputs/output*

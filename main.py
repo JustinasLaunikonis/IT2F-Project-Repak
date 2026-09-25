@@ -4,6 +4,9 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from docx_generator.docx_generator import convert_json_to_docx
+
+from pydantic import BaseModel
 
 project_directory = Path(__file__).resolve().parent
 static_directory = project_directory / "static"
@@ -20,3 +23,18 @@ app.mount("/static", StaticFiles(directory=static_directory), name="static")
 @app.get("/")
 def show_home_page():
     return FileResponse(home_page, media_type="text/html")
+
+
+class DocxFileExportRequest(BaseModel):
+    transcript: str
+
+@app.post("/export")
+def export_docx_file(request: DocxFileExportRequest):
+
+    output_path = convert_json_to_docx(request.transcript)
+
+    return FileResponse(
+        path=output_path,
+        filename=output_path.name,
+        headers={"filename": output_path.name}
+    )

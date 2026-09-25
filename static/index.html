@@ -12,33 +12,125 @@
     <main>
         <h1>Repak live call transcription</h1>
         <p>The local application is running.</p>
-        <p>This is the initial application screen. Recording and transcription are not available yet.</p>
+        <p>Record your microphone and review the audio before downloading. Transcription is not available yet.</p>
 
         <form>
             <fieldset>
-                <legend>Transcription controls</legend>
+                <legend>Recording controls</legend>
+                <p>By default, Start asks only for microphone access and records your voice. Caller audio is not
+                    captured.</p>
+                <label><input id="include-caller" type="checkbox"> Also record caller audio (requires screen or tab
+                    sharing with audio)</label>
 
                 <p id="connection-status">
-                    Status: Not connected
+                    Connection: Not connected
+                </p>
+
+                <p id="activity-status" class="status status-idle">
+                    Activity: Idle
+                </p>
+
+                <p id="activity-message">
+                    Application waiting to start.
                 </p>
 
                 <div class="controls">
-                    <button id="start-button" type="button" disabled>
-                        Start transcription
+                    <button id="start-button" type="button">
+                        Start recording
                     </button>
 
                     <button id="stop-button" type="button" disabled>
-                        Stop transcription
+                        Stop recording
                     </button>
+                </div>
+
+                <div id="recording-review" hidden>
+                    <h2>Review recordings</h2>
+                    <p>Listen to each available recording. Download only after confirming that it contains the intended
+                        audio.</p>
+                    <label for="harm-preview">Microphone (Harm)</label>
+                    <audio id="harm-preview" controls></audio>
+                    <a id="harm-download" download="harm.wav">Download harm.wav</a>
+                    <div id="caller-review" hidden>
+                        <label for="caller-preview">Shared audio (caller)</label>
+                        <audio id="caller-preview" controls></audio>
+                        <a id="caller-download" download="caller.wav">Download caller.wav</a>
+                    </div>
                 </div>
 
                 <label for="transcript">Live transcript</label>
 
                 <textarea id="transcript" name="transcript" readonly
                     placeholder="The live transcript will appear here."></textarea>
+
+                <label for="missing-details"></label>
+
+                <div id="missing-details">
+                    <h2>Missing details</h2>
+                    <p>The following details are missing, please fill them in manually so that the document can be complete</p>
+                    <div id="missing-details-form">
+                        <div class="missing-details-row"></div>
+                    </div>
+                </div>    
+                <button type="button" id="missing-details-submit-button">Submit</button>           
             </fieldset>
         </form>
+
+        <div class="microphone-inputs">
+            <h2>Available microphones</h2>
+
+            <p>Allow microphone access to see available microphone input names.
+            </p>
+
+            <button id="list-microphones-button" type="button">
+                List microphones
+            </button>
+
+            <p id="microphone-message">
+                Microphone list not loaded yet.
+            </p>
+
+            <label for="microphone-select">Choose a microphone</label>
+
+            <select id="microphone-select" disabled>
+                <option value="">No microphone selected</option>
+            </select>
+        </div>
+
+        <div class="state-tester" hidden>
+            <h2>Test activity states</h2>
+
+            <p>
+                Click on buttons to preview each application state.
+                <br>
+                Buttons do not start a real recording yet.
+            </p>
+
+            <div class="test-controls">
+                <button id="test-idle" type="button">
+                    Test idle
+                </button>
+
+                <button id="test-recording" type="button">
+                    Test recording
+                </button>
+
+                <button id="test-processing" type="button">
+                    Test processing
+                </button>
+
+                <button id="test-completed" type="button">
+                    Test completed
+                </button>
+
+                <button id="test-error" type="button">
+                    Test error
+                </button>
+            </div>
+        </div>
     </main>
+    <script type="module" src="/static/index.js"></script>
+    <!-- 'type=module' allows index.js import functions from recorder.js-->
 </body>
 
 </html>
