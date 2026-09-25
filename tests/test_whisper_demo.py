@@ -53,14 +53,16 @@ def test_cuda_check_failure_uses_cpu(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "device, compute_type",
-    [("cpu", "int8"), ("cuda", "float16")],
+    "device, model_name, compute_type",
+    [("cpu", "small", "int8"), ("cuda", "large-v3-turbo", "float16")],
 )
 def test_transcription_uses_local_model_and_prints_segments(
-    monkeypatch, capsys, device, compute_type
+    monkeypatch, capsys, device, model_name, compute_type
 ):
     import whisper_demo
 
+    monkeypatch.delenv("WHISPER_DEVICE", raising=False)
+    monkeypatch.delenv("WHISPER_MODEL", raising=False)
     calls = []
     fake_whisper = types.ModuleType("faster_whisper")
 
@@ -90,14 +92,79 @@ def test_transcription_uses_local_model_and_prints_segments(
     whisper_demo.transcribe_audio("synthetic.wav")
 
     assert calls == [
-        ("load", "large-v3", device, compute_type),
+        ("load", model_name, device, compute_type),
         ("transcribe", "synthetic.wav", 5),
     ]
-    output = capsys.readouterr().out
+    captured = capsys.readouterr()
+    output = captured.out
+    assert f"Using Whisper model: {model_name}; device: {device}; compute type: {compute_type}" in output
+    if device == "cpu":
+        assert "Warning: CUDA is unavailable" in captured.err
     assert "Detected language: en" in output
     assert "Confidence: 0.75" in output
     assert "[0.00s -> 1.25s] synthetic test" in output
     assert "[1.25s -> 2.00s] part two" in output
+
+
+def test_explicit_cpu_and_model_override(monkeypatch, capsys):
+    import whisper_demo
+
+    monkeypatch.setenv("WHISPER_DEVICE", "cpu")
+    monkeypatch.setenv("WHISPER_MODEL", "base")
+    monkeypatch.setattr(whisper_demo, "configure_windows_cuda_paths", lambda: None)
+    monkeypatch.setattr(whisper_demo, "get_whisper_device", lambda: pytest.fail("CUDA queried"))
+
+    calls = []
+    fake_whisper = types.ModuleType("faster_whisper")
+
+    class FakeModel:
+        def __init__(self, model_name, device, compute_type):
+            calls.append((model_name, device, compute_type))
+
+        def transcribe(self, audio_path, beam_size):
+            return [], types.SimpleNamespace(language="en", language_probability=1.0)
+
+    fake_whisper.WhisperModel = FakeModel
+    monkeypatch.setitem(sys.modules, "faster_whisper", fake_whisper)
+
+    whisper_demo.transcribe_audio("synthetic.wav")
+
+    assert calls == [("base", "cpu", "int8")]
+    assert "Using Whisper model: base; device: cpu" in capsys.readouterr().out
+
+
+def test_cuda_load_failure_falls_back_to_small_cpu_model(monkeypatch, capsys):
+    import whisper_demo
+
+    monkeypatch.delenv("WHISPER_DEVICE", raising=False)
+    monkeypatch.delenv("WHISPER_MODEL", raising=False)
+    monkeypatch.setattr(whisper_demo, "configure_windows_cuda_paths", lambda: None)
+    monkeypatch.setattr(whisper_demo, "get_whisper_device", lambda: "cuda")
+
+    calls = []
+    fake_whisper = types.ModuleType("faster_whisper")
+
+    class FakeModel:
+        def __init__(self, model_name, device, compute_type):
+            calls.append((model_name, device, compute_type))
+            if device == "cuda":
+                raise RuntimeError("missing CUDA library")
+
+        def transcribe(self, audio_path, beam_size):
+            return [], types.SimpleNamespace(language="en", language_probability=1.0)
+
+    fake_whisper.WhisperModel = FakeModel
+    monkeypatch.setitem(sys.modules, "faster_whisper", fake_whisper)
+
+    whisper_demo.transcribe_audio("synthetic.wav")
+
+    assert calls == [
+        ("large-v3-turbo", "cuda", "float16"),
+        ("small", "cpu", "int8"),
+    ]
+    output = capsys.readouterr()
+    assert "Warning: CUDA model failed to load" in output.err
+    assert "Using Whisper model: small; device: cpu" in output.out
 
 
 def test_generated_filename_preserves_extension(monkeypatch):
