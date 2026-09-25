@@ -4,5 +4,5 @@ python-docx==1.2.0
 
 faster-whisper==1.2.1
 ctranslate2==4.8.2
-nvidia-cublas-cu12==12.9.2.10
-nvidia-cudnn-cu12==9.26.0.51
+nvidia-cublas-cu12==12.9.2.10; platform_system == "Linux"
+nvidia-cudnn-cu12==9.26.0.51; platform_system == "Linux"

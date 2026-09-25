@@ -27,6 +27,38 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser. You should 
 
 **For later runs, open PowerShell in the repository and repeat the final server command.**
 
+## Run local Whisper transcription
+
+The standalone transcription command selects `large-v3-turbo` with CUDA and
+`float16` when an NVIDIA GPU is available. On a CPU machine it uses `small`
+with `int8` and prints a warning. It logs the model, device, and compute type
+before transcribing. The first run downloads the selected model.
+
+```powershell
+.\.venv\Scripts\python.exe whisper_demo.py path\to\recording.wav
+```
+
+Set `WHISPER_DEVICE` to `auto` (default), `cuda`, or `cpu`. Set `WHISPER_MODEL`
+to override the model for either device. For example:
+
+```powershell
+$env:WHISPER_DEVICE = "cpu"
+$env:WHISPER_MODEL = "base"
+.\.venv\Scripts\python.exe whisper_demo.py path\to\recording.wav
+```
+
+Remove the overrides with `Remove-Item Env:WHISPER_DEVICE, Env:WHISPER_MODEL`.
+If CUDA is unavailable or its libraries fail to load, the command warns and
+uses the CPU. A model override remains in effect during that fallback.
+
+GPU inference requires a compatible NVIDIA driver, [CUDA 12 cuBLAS and CUDA 12
+cuDNN 9](https://github.com/SYSTRAN/faster-whisper#gpu). On Windows, install
+these libraries separately and add their DLL directories to `PATH` before
+starting Python. The `nvidia-*` packages in `requirements.txt` apply only to
+Linux, as faster-whisper documents their pip installation for Linux. On Linux,
+set `LD_LIBRARY_PATH` to the installed cuBLAS and cuDNN library directories
+before starting Python. CPU transcription does not require these GPU libraries.
+
 ## Run the UI status test
 
 First create `.venv` and install `requirements.txt` using the commands above. Install Node.js and npm, then run these commands in PowerShell from the repository folder:

@@ -5,6 +5,10 @@ import sys
 import time
 from pathlib import Path
 
+GPU_MODEL = "large-v3-turbo"
+CPU_MODEL = "small"
+_cuda_dll_handles = []
+
 
 def configure_windows_cuda_paths():
     if os.name != "nt":
@@ -19,7 +23,8 @@ def configure_windows_cuda_paths():
 
     for directory in library_directories:
         if directory.exists():
-            os.add_dll_directory(str(directory))
+            # Keep the handle alive: closing it removes the DLL search path.
+            _cuda_dll_handles.append(os.add_dll_directory(str(directory)))
             os.environ["PATH"] = str(directory) + os.pathsep + os.environ.get("PATH", "")
 
 
@@ -40,16 +45,33 @@ def transcribe_audio(audio_path):
 
     from faster_whisper import WhisperModel
 
-    device = get_whisper_device()
-    if device == "cuda":
-        compute_type = "float16"
-    else:
-        compute_type = "int8"
+    requested_device = os.environ.get("WHISPER_DEVICE", "auto").strip().lower()
+    if requested_device not in {"auto", "cuda", "cpu"}:
+        raise ValueError("WHISPER_DEVICE must be auto, cuda, or cpu")
+
+    available_device = get_whisper_device() if requested_device != "cpu" else "cpu"
+    device = "cpu" if requested_device == "cpu" else available_device
+    if device == "cpu" and requested_device != "cpu":
+        print("Warning: CUDA is unavailable; using the CPU model.", file=sys.stderr)
+
+    model_override = os.environ.get("WHISPER_MODEL", "").strip()
+    model_name = model_override or (GPU_MODEL if device == "cuda" else CPU_MODEL)
+    compute_type = "float16" if device == "cuda" else "int8"
 
     # Loading the model can download it on first use, so only do this for an
     # explicit transcription request, never while importing this module.
-    model = WhisperModel("large-v3", device=device, compute_type=compute_type)
-    print(f"Using device: {device}")
+    try:
+        model = WhisperModel(model_name, device=device, compute_type=compute_type)
+    except (OSError, RuntimeError) as error:
+        if device != "cuda":
+            raise
+        print(f"Warning: CUDA model failed to load ({error}); using CPU.", file=sys.stderr)
+        device = "cpu"
+        model_name = model_override or CPU_MODEL
+        compute_type = "int8"
+        model = WhisperModel(model_name, device=device, compute_type=compute_type)
+
+    print(f"Using Whisper model: {model_name}; device: {device}; compute type: {compute_type}")
     print(f"Transcribing audio: {audio_path}")
 
     segments, information = model.transcribe(audio_path, beam_size=5)
