@@ -59,6 +59,28 @@ npm run test:ui
 
 The test starts a local server automatically and checks the visible activity status and error message in Chromium. It tests the status preview buttons and a simulated recording permission failure, without recording audio.
 
+## Scripted test calls
+
+The `test_calls` directory contains five short synthetic English service calls for demonstrations, transcription accuracy checks, and automated testing.
+
+All conversations are fictional. They contain no real customer audio or customer information.
+
+| Call | Machine problem |
+| --- | --- |
+| Call 01 | Conveyor belt moves backwards |
+| Call 02 | Label printer keeps printing the word banana |
+| Call 03 | Robot arm waves instead of picking up boxes |
+| Call 04 | Packaging machine wraps empty space |
+| Call 05 | Coffee machine makes coffee without a cup |
+
+Each call directory contains:
+
+- `harm.wav`: the Operator's microphone recording.
+- `caller.wav`: the Technician's caller-audio recording.
+- `transcript.txt`: the exact scripted conversation for both speakers.
+
+The recordings are mono, 16-bit PCM WAV files at 16 kHz.
+
 ## Contributing through pull requests
 
 All changes to `main` must go through a pull request (PR). Reviewer approvals are not required, but asking a teammate to review your PR is encouraged.

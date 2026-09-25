@@ -1,0 +1,11 @@
+Operator: Hello, our robot arm is waving at everyone.
+
+Technician: Is it picking up any boxes?
+
+Operator: No. It only waves when a box arrives.
+
+Technician: Please restart the robot controller.
+
+Operator: It is picking up boxes again.
+
+Technician: Great. The controller was using the wrong movement program.

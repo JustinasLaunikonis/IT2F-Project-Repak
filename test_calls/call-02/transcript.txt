@@ -1,0 +1,11 @@
+Operator: Hello, our label printer keeps printing the word banana.
+
+Technician: Does it print banana on every label?
+
+Operator: Yes. We now have fifty boxes called banana.
+
+Technician: Please clear the print queue and select the correct label template.
+
+Operator: The correct product name is printing now.
+
+Technician: Great. The wrong template was selected.

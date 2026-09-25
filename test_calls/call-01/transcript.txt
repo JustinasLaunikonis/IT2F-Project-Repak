@@ -1,0 +1,11 @@
+Operator: Hello, our conveyor belt is moving backwards.
+
+Technician: Are the boxes travelling away from the packing area?
+
+Operator: Yes. They are coming back like they forgot something.
+
+Technician: Please stop the belt and restart its controller.
+
+Operator: It is moving in the correct direction now.
+
+Technician: Great. The controller had selected the reverse direction.
