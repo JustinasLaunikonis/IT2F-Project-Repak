@@ -47,6 +47,20 @@ Linux, as faster-whisper documents their pip installation for Linux. On Linux,
 set `LD_LIBRARY_PATH` to the installed cuBLAS and cuDNN library directories
 before starting Python. CPU transcription does not require these GPU libraries.
 
+### Test the WAV upload endpoint
+
+Start the application with `run.bat`. In PowerShell, set the path to a WAV
+file on your computer and upload it:
+
+```powershell
+$audioFile = "C:\Path\To\recording.wav"
+curl.exe -X POST http://127.0.0.1:8000/transcribe -F "file=@$audioFile"
+```
+
+A successful request returns JSON such as `{"text":"Hello, this is a test."}`.
+The file is processed locally. Browser recording and upload integration are
+still being developed.
+
 ## Run the UI status test
 
 First run `install.bat`. Install Node.js and npm, then run these commands in PowerShell from the project folder:
