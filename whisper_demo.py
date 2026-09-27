@@ -88,8 +88,20 @@ def transcribe_audio(audio_path):
     print(f"Detected language: {information.language}")
     print(f"Confidence: {information.language_probability:.2f}")
 
+    transcription_parts = []
+
     for segment in segments:
-        print(f"[{segment.start:.2f}s -> {segment.end:.2f}s] {segment.text}")
+        print(
+            f"[{segment.start:.2f}s -> "
+            f"{segment.end:.2f}s] "
+            f"{segment.text}"
+        )
+
+        transcription_parts.append(segment.text.strip())
+
+    transcription_text = " ".join(transcription_parts)
+
+    return transcription_text
 
 
 def generate_unique_filename(original_name):
