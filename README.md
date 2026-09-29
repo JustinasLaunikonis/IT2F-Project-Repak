@@ -9,6 +9,52 @@
 
 For later runs, use only `run.bat`. If installation stops with an error, read the message in its window and run `install.bat` again after fixing the problem. The model download needs internet during installation; audio processing is local. The current browser page is a local application preview. The full recording and transcription flow is still being developed.
 
+## Prepare the application for offline use
+
+Complete these one-time downloads while the computer is connected to the
+internet:
+
+1. Install Python 3.10 or newer.
+2. Download and unzip this project.
+3. Run `install.bat`. It creates `.venv`, installs the Python packages from
+   `requirements.txt`, and stores the Whisper model in the local Hugging Face
+   cache.
+4. If the computer will use an NVIDIA GPU, install the compatible NVIDIA
+   driver, CUDA 12 cuBLAS, and CUDA 12 cuDNN 9. These are not needed for the
+   CPU fallback.
+5. Open the application once with `run.bat` and confirm that
+   [http://127.0.0.1:8000](http://127.0.0.1:8000) loads.
+
+Keep the project folder, its `.venv` folder, and the downloaded model cache on
+the computer. After this setup, `run.bat`, recording, transcription, and DOCX
+export do not need an internet connection. Whisper is opened with
+`local_files_only=True`, so it will report an error instead of downloading a
+missing model during transcription.
+
+### Verify the complete workflow without a network connection
+
+1. Finish the one-time setup above, close the application, and turn off Wi-Fi
+   and any wired network connection.
+2. Double-click `run.bat` and open
+   [http://127.0.0.1:8000](http://127.0.0.1:8000).
+3. Select a microphone, record a short test call, stop the recording, listen
+   to it, and download `harm.wav`. Download `caller.wav` too if caller audio
+   was enabled.
+4. In PowerShell, transcribe each downloaded recording locally:
+
+   ```powershell
+   .\.venv\Scripts\python.exe whisper_demo.py "C:\path\to\harm.wav"
+   .\.venv\Scripts\python.exe whisper_demo.py "C:\path\to\caller.wav"
+   ```
+
+5. Copy the transcript into the **transcriptie** field in the browser, fill in
+   the other required call details, and save the generated DOCX report.
+6. Open the DOCX and confirm that it contains the transcript and call details.
+
+The current interface does not send recordings directly to Whisper. The two
+local transcription commands are therefore a manual step in this offline
+verification cycle.
+
 ## Run local Whisper transcription
 
 The standalone transcription command selects `large-v3-turbo` with CUDA and
