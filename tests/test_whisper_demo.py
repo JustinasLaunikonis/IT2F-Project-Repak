@@ -89,7 +89,9 @@ def test_transcription_uses_local_model_and_prints_segments(
     monkeypatch.setattr(whisper_demo, "get_whisper_device", get_selected_device)
     monkeypatch.setattr(whisper_demo, "configure_windows_cuda_paths", skip_cuda_path_configuration)
 
-    whisper_demo.transcribe_audio("synthetic.wav")
+    transcription = whisper_demo.transcribe_audio("synthetic.wav")
+
+    assert transcription == "synthetic test part two"
 
     assert calls == [
         ("load", model_name, device, compute_type, True),

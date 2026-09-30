@@ -5,6 +5,7 @@ import { startWavRecording, stopWavRecording } from "./recorder.js"; //these fun
 const activityStatus = document.getElementById("activity-status");
 const activityMessage = document.getElementById("activity-message");
 const connectionStatus = document.getElementById("connection-status");
+const transcript = document.getElementById("transcript");
 
 const startButton = document.getElementById("start-button");
 const stopButton = document.getElementById("stop-button");
@@ -192,6 +193,23 @@ function showRecordingReview(files) {
     recordingReview.hidden = false;
 }
 
+async function transcribeRecording(audioBlob) {
+    const formData = new FormData();
+    formData.append("file", audioBlob, "harm.wav");
+
+    const response = await fetch("/transcribe", {
+        method: "POST",
+        body: formData,
+    });
+
+    if (!response.ok) {
+        throw new Error("Transcription failed. Check the server and try again.");
+    }
+
+    const result = await response.json();
+    return result.text;
+}
+
 function handleUnexpectedStop(error, files) {
     recordingSessionActive = false;
     stopRequested = false;
@@ -354,6 +372,10 @@ stopButton.addEventListener("click", async function () {
         const files = await stopWavRecording();
         showRecordingReview(files);
 
+        const transcriptionText = await transcribeRecording(files.harm);
+        transcript.value = transcriptionText;
+        callDetails["[transcriptie]"] = transcriptionText;
+
         recordingSessionActive = false;
         stopRequested = false;
 
@@ -367,13 +389,9 @@ stopButton.addEventListener("click", async function () {
         microphoneSelect.disabled = false;
         listMicrophonesButton.disabled = false;
 
-        showState("idle");
+        showState("completed");
         activityMessage.textContent =
-            "Recording stopped. Review your microphone audio before downloading. Transcription is not available yet.";
-        if (files.caller !== undefined) {
-            activityMessage.textContent =
-                "Recording stopped. Review both audio files before downloading. Transcription is not available yet.";
-        }
+        "Microphone recording transcribed. Review the audio and transcript.";
     } catch (error) {
         //reset the interface if recording cant be stopped
         recordingSessionActive = false;
