@@ -1,6 +1,14 @@
 const { test, expect } = require("@playwright/test");
 
-test("stopping capture closes every track without claiming transcription", async function ({ page }) {
+test("stopping capture closes every track and shows the transcript", async function ({ page }) {
+    await page.route("**/transcribe", async function (route) {
+        await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ text: "Test caller transcript" })
+        });
+    });
+
     await page.addInitScript(function () {
         window.stoppedCaptureTracks = [];
 
@@ -102,10 +110,11 @@ test("stopping capture closes every track without claiming transcription", async
 
     await page.locator("#stop-button").click();
 
-    await expect(page.locator("#activity-status")).toHaveText("Activity: Idle");
+    await expect(page.locator("#activity-status")).toHaveText("Activity: Completed");
     await expect(page.locator("#activity-message")).toHaveText(
-        "Recording stopped. Review both audio files before downloading. Transcription is not available yet."
+        "Microphone recording transcribed. Review the audio and transcript."
     );
+    await expect(page.locator("#transcript")).toHaveValue("Test caller transcript");
     await expect(page.locator("#harm-download")).toHaveAttribute("download", "harm.wav");
     await expect(page.locator("#caller-download")).toHaveAttribute("download", "caller.wav");
     await expect(page.locator("#harm-download")).toHaveAttribute("href", /^blob:/);
