@@ -1,6 +1,14 @@
 const { test, expect } = require("@playwright/test");
 
 test("default recording requests only microphone and releases it after review", async function ({ page }) {
+    await page.route("**/transcribe", async function (route) {
+        await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ text: "Test microphone transcript" })
+        });
+    });
+
     await page.addInitScript(function () {
         window.stoppedCaptureTracks = [];
 
@@ -97,10 +105,11 @@ test("default recording requests only microphone and releases it after review", 
 
     await page.locator("#stop-button").click();
 
-    await expect(page.locator("#activity-status")).toHaveText("Activity: Idle");
+    await expect(page.locator("#activity-status")).toHaveText("Activity: Completed");
     await expect(page.locator("#activity-message")).toHaveText(
-        "Recording stopped. Review your microphone audio before downloading. Transcription is not available yet."
+        "Microphone recording transcribed. Review the audio and transcript."
     );
+    await expect(page.locator("#transcript")).toHaveValue("Test microphone transcript");
     await expect(page.locator("#harm-download")).toHaveAttribute("download", "harm.wav");
     await expect(page.locator("#caller-review")).toBeHidden();
     await expect(page.locator("#harm-download")).toHaveAttribute("href", /^blob:/);
