@@ -40,7 +40,7 @@ def get_whisper_device():
     return "cpu"
 
 
-def transcribe_audio(audio_path):
+def transcribe_audio_segments(audio_path):
     configure_windows_cuda_paths()
 
     from faster_whisper import WhisperModel
@@ -97,11 +97,28 @@ def transcribe_audio(audio_path):
             f"{segment.text}"
         )
 
-        transcription_parts.append(segment.text.strip())
+        transcription_segment = {
+            "start": segment.start,
+            "end": segment.end,
+            "text": segment.text.strip(),
+        }
 
-    transcription_text = " ".join(transcription_parts)
+        transcription_segments.append(transcription_segment)
 
     return transcription_text
+
+
+def transcribe_audio(audio_path):
+    segments = transcribe_audio_segments(audio_path) #get the timestamped transcription segments
+
+    text_parts = []
+
+    #keep only the text from each segment
+    for segment in segments:
+            text_parts.append(segment["text"])
+
+    #preserve the olds text only transcription result
+    return " ".join(text_parts)
 
 
 def generate_unique_filename(original_name):
