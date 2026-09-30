@@ -6,41 +6,117 @@ import main
 client = TestClient(main.app)
 
 
-def test_wav_upload_returns_text(monkeypatch):
-    def fake_transcribe_audio(audio_path):
-        with open(audio_path, "rb") as audio_file:
-            assert audio_file.read() == b"fake audio data"
+def test_wav_upload_return_speaker_transcript(monkeypatch):
+    def fake_transcribe_segments(audio_path):
+        if audio_path.endswith("harm.wav"):
+            return [
+                {
+                    "start": 0.0,
+                    "end": 1.0,
+                    "text": "Hello caller",
+                }
+            ]
 
-        return "Hello from the test"
+        return [
+            {
+                "start": 2.0,
+                "end": 3.0,
+                "text": "Hello Harm", 
+            }
+        ]
 
     monkeypatch.setattr(
         main,
-        "transcribe_audio",
-        fake_transcribe_audio,
+        "transcribe_audio_segments",
+        fake_transcribe_segments,
     )
 
     response = client.post(
         "/transcribe",
         files={
-            "file": (
+            "harm": (
                 "sample.wav",
                 b"fake audio data",
                 "audio/wav",
-            )
+            ),
+            "caller": (
+                "caller.wav",
+                b"fake caller audio",
+                "audio/wav",
+            ),
         },
     )
 
     assert response.status_code == 200
     assert response.json() == {
-        "text": "Hello from the test"
+        "segments": [
+            {
+                "speaker": "Harm",
+                "start": 0.0,
+                "end": 1.0,
+                "text": "Hello caller",
+            },
+            {
+                "speaker": "Caller",
+                "start": 2.0,
+                "end": 3.0,
+                "text": "Hello Harm", 
+            },
+        ],
+        "text": (
+            "[00:00:00] Harm: Hello caller\n"
+            "[00:00:02] Caller: Hello Harm"
+        ),
     }
 
+
+def test_microphone_only_recording_still_works(monkeypatch):
+    #return one example segment without loading whisper
+    def fake_transcribe_segments(audio_path):
+        return [
+            {
+                "start": 0.0,
+                "end": 1.0,
+                "text": "Microphone only",
+            }
+        ]
+
+    monkeypatch.setattr(
+        main,
+        "transcribe_audio_segments",
+        fake_transcribe_segments,
+    )
+
+    response = client.post(
+        "/transcribe",
+        files={
+            "harm": (
+                "harm.wav",
+                b"fake harm audio",
+                "audio/wav",
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+
+    assert response.json() == {
+        "segments": [
+            {
+                "speaker": "Harm",
+                "start": 0.0,
+                "end": 1.0,
+                "text": "Microphone only",
+            }
+        ],
+        "text": "[00:00:00] Harm: Microphone only"
+    }
 
 def test_non_wav_upload_is_rejected():
     response = client.post(
         "/transcribe",
         files={
-            "file": (
+            "harm": (
                 "notes.txt",
                 b"not audio",
                 "text/plain",
@@ -50,7 +126,7 @@ def test_non_wav_upload_is_rejected():
 
     assert response.status_code == 400
     assert response.json() == {
-        "detail": "Please upload a WAV file."
+        "detail": "Please upload WAV files."
     }
 
 
@@ -58,7 +134,7 @@ def test_empty_wav_is_rejected():
     response = client.post(
         "/transcribe",
         files={
-            "file": (
+            "harm": (
                 "empty.wav",
                 b"",
                 "audio/wav",
@@ -68,5 +144,5 @@ def test_empty_wav_is_rejected():
 
     assert response.status_code == 400
     assert response.json() == {
-        "detail": "The uploaded WAV file is empty."
+        "detail": "An uploaded WAV file is empty."
     }
