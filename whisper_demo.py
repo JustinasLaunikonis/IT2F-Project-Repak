@@ -88,7 +88,7 @@ def transcribe_audio_segments(audio_path):
     print(f"Detected language: {information.language}")
     print(f"Confidence: {information.language_probability:.2f}")
 
-    transcription_parts = []
+    transcription_segments = []
 
     for segment in segments:
         print(
@@ -105,7 +105,7 @@ def transcribe_audio_segments(audio_path):
 
         transcription_segments.append(transcription_segment)
 
-    return transcription_text
+    return transcription_segments
 
 
 def transcribe_audio(audio_path):
@@ -115,7 +115,8 @@ def transcribe_audio(audio_path):
 
     #keep only the text from each segment
     for segment in segments:
-            text_parts.append(segment["text"])
+        text_parts.append(segment["text"])
+
 
     #preserve the olds text only transcription result
     return " ".join(text_parts)

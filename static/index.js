@@ -25,7 +25,9 @@ const callerPreview = document.getElementById("caller-preview");
 const harmDownload = document.getElementById("harm-download");
 const callerDownload = document.getElementById("caller-download");
 const missingDetails = document.getElementById("missing-details");
-const missingDetailsSubmitButton = document.getElementById("missing-details-submit-button");
+const missingDetailsSubmitButton = document.getElementById(
+    "missing-details-submit-button",
+);
 
 const microphoneSelect = document.getElementById("microphone-select");
 const microphoneMessage = document.getElementById("microphone-message");
@@ -109,10 +111,10 @@ for (let [key, value] of Object.entries(callDetails)) {
     fieldNumber++;
 
     label.htmlFor = input.id;
-    label.textContent = key.slice(1, -1) + ":" //remove the surrounding square brackets
+    label.textContent = key.slice(1, -1) + ":"; //remove the surrounding square brackets
 
     // Keep the values updated as the user types, updated for each value.
-    input.addEventListener("input", function() {
+    input.addEventListener("input", function () {
         callDetails[key] = input.value;
     });
 
@@ -126,10 +128,10 @@ async function submitCallData() {
     try {
         const docxGeneratorResponse = await fetch("/export", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                transcript: JSON.stringify(callDetails)
-            })
+                transcript: JSON.stringify(callDetails),
+            }),
         });
 
         if (!docxGeneratorResponse.ok) {
@@ -143,7 +145,8 @@ async function submitCallData() {
         // download generated file
         const fileDownloadLink = document.createElement("a");
         fileDownloadLink.href = fileDownloadUrl;
-        fileDownloadLink.download = docxGeneratorResponse.headers.get("filename");
+        fileDownloadLink.download =
+            docxGeneratorResponse.headers.get("filename");
         document.body.appendChild(fileDownloadLink);
         fileDownloadLink.click();
         fileDownloadLink.remove();
@@ -193,9 +196,14 @@ function showRecordingReview(files) {
     recordingReview.hidden = false;
 }
 
-async function transcribeRecording(audioBlob) {
+async function transcribeRecording(files) {
     const formData = new FormData();
-    formData.append("file", audioBlob, "harm.wav");
+
+    formData.append("harm", files.harm, "harm.wav"); //add harm's mic recording
+
+    if (files.caller !== undefined) {
+        formData.append("caller", files.caller, "caller.wav");
+    }
 
     const response = await fetch("/transcribe", {
         method: "POST",
@@ -203,11 +211,13 @@ async function transcribeRecording(audioBlob) {
     });
 
     if (!response.ok) {
-        throw new Error("Transcription failed. Check the server and try again.");
+        throw new Error(
+            "Transcription failed. Check the server and try again.",
+        );
     }
 
     const result = await response.json();
-    return result.text;
+    return result;
 }
 
 function handleUnexpectedStop(error, files) {
@@ -370,11 +380,14 @@ stopButton.addEventListener("click", async function () {
     try {
         //stop recording and create the wav audio
         const files = await stopWavRecording();
+
         showRecordingReview(files);
 
-        const transcriptionText = await transcribeRecording(files.harm);
-        transcript.value = transcriptionText;
-        callDetails["[transcriptie]"] = transcriptionText;
+        const transcriptionResult = await transcribeRecording(files); // upload both recordings and receive4 the combined transcript
+
+        transcript.value = transcriptionResult.text;
+
+        callDetails["[transcriptie]"] = transcriptionResult.text;
 
         recordingSessionActive = false;
         stopRequested = false;
@@ -391,7 +404,7 @@ stopButton.addEventListener("click", async function () {
 
         showState("completed");
         activityMessage.textContent =
-        "Microphone recording transcribed. Review the audio and transcript.";
+            "Microphone recording transcribed. Review the audio and transcript.";
     } catch (error) {
         //reset the interface if recording cant be stopped
         recordingSessionActive = false;

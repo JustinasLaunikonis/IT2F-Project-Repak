@@ -48,7 +48,7 @@ def merge_and_format_transcript(harm_segments, caller_segments):
         timestamp = format_timestamp(segment["start"])
 
         line = (
-            f"[{timestamp}]"
+            f"[{timestamp}] "
             f"{segment['speaker']}: "
             f"{segment['text']}"
         )

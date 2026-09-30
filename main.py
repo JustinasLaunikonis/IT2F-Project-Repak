@@ -64,7 +64,7 @@ def save_uploaded_wav(uploaded_file, destination):
     if destination.stat().st_size == 0: #dont accept empty recordingsd
         raise HTTPException(
             status_code=400,
-            detail="An uploaded WAY file is empty,",
+            detail="An uploaded WAV file is empty.",
         )
 
 
@@ -90,3 +90,24 @@ def transcribe_uploaded_wav(
         )
 
         caller_segments = []
+
+        #transcrive caller.wav if caller audio was recorded
+        if caller is not None:
+            caller_path = temporary_path / "caller.wav"
+
+            save_uploaded_wav(
+                caller,
+                caller_path
+            )
+
+            caller_segments = transcribe_audio_segments(
+                str(caller_path)
+            )
+
+        #label speakers and put all segments in spoken order
+        transcript_result = merge_and_format_transcript(
+            harm_segments,
+            caller_segments
+        )
+
+        return transcript_result
