@@ -111,3 +111,8 @@ def transcribe_uploaded_wav(
         )
 
         return transcript_result
+#
+#
+# @app.post("extract-report")
+# def convert_transcription_to_json_input():
+#
