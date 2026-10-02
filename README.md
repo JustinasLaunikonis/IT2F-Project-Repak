@@ -107,7 +107,7 @@ A successful request returns JSON such as `{"text":"Hello, this is a test."}`.
 The file is processed locally. Browser recording and upload integration are
 still being developed.
 
-## Run the UI status test
+## Run the browser tests
 
 First run `install.bat`. Install Node.js and npm, then run these commands in PowerShell from the project folder:
 
@@ -117,7 +117,24 @@ npx playwright install chromium
 npm run test:ui
 ```
 
-The test starts a local server automatically and checks the visible activity status and error message in Chromium. It tests the status preview buttons and a simulated recording permission failure, without recording audio.
+The tests start a local server automatically and check activity status,
+microphone selection, recording, and export in Chromium.
+
+The record-to-export test uses Chromium's fake microphone with
+`--use-fake-device-for-media-stream` and `--use-fake-ui-for-media-stream`,
+and grants microphone permission in its test context. It records through
+browser audio APIs, replaces only
+the `/transcribe` response with synthetic fixture JSON, checks the completed
+state and transcript, and downloads a DOCX from the real `/export` endpoint.
+No physical microphone, Whisper model download, or GPU is needed for this
+test. It checks browser integration, not Whisper transcription accuracy.
+CI runs it automatically with the rest of the browser tests.
+
+To run only this flow:
+
+```powershell
+npm run test:ui -- tests/ui/record-to-export.spec.js
+```
 
 ## Contributing through pull requests
 
