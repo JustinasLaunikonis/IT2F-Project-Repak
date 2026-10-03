@@ -1,0 +1,11 @@
+Operator: Hello, our coffee machine makes coffee without checking for a cup.
+
+Technician: Is the coffee going directly into the drip tray?
+
+Operator: Yes. The machine is drinking more coffee than we are.
+
+Technician: Please clean the cup sensor and restart the machine.
+
+Operator: It now waits until a cup is present.
+
+Technician: Great. The cup sensor was blocked.

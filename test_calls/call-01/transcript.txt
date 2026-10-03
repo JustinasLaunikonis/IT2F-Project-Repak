@@ -1,0 +1,311 @@
+Operator: Good morning, this is Maya de Vries calling from North Harbour Foods in Rotterdam. I need help with one of our conveyor lines.
+
+Technician: Good morning, Maya. You have reached Harm at Repak technical support. Before we begin, are you in a safe place to inspect the machine?
+
+Operator: Yes. I am standing beside the control station, but I am behind the yellow safety line. The conveyor is stopped right now.
+
+Technician: Perfect. Please keep it stopped until I ask you to test it. Can I have your customer number and the machine number?
+
+Operator: Our customer number is N H F dash two zero seven four. The machine number is two zero two six M C H V three one zero three four nine.
+
+Technician: Let me repeat that: customer N H F dash two zero seven four, and machine two zero two six M C H V three one zero three four nine. Is that correct?
+
+Operator: Sorry, the last five digits are one zero three nine four, not one zero three four nine. The full number is two zero two six dash M C H dash V three dash one zero three nine four.
+
+Technician: Thank you for correcting that. I have machine 2026-MCH-V3-10394. What is the serial number on the silver plate?
+
+Operator: It says S N dash eight four dash three zero nine dash X Q. Under that, it says conveyor module C V dash twelve B.
+
+Technician: I found the machine. It was installed on the fourteenth of February, 2026. Which conveyor section is causing the problem?
+
+Operator: Section B, the short belt between the metal detector and packing station two. We call it conveyor B twelve.
+
+Technician: Please describe what happened from the beginning. Include anything unusual you noticed before the fault.
+
+Operator: At about eight fifteen this morning, the first shift started the line. The belt moved normally for perhaps ten minutes. Then an operator cleared a box near the photo sensor. After she pressed Start again, the belt moved backwards.
+
+Technician: When you say backwards, do you mean the boxes travelled from packing station two toward the metal detector?
+
+Operator: Exactly. Three boxes came back toward the detector. Nobody was hurt, and we pressed Stop immediately.
+
+Technician: Good response. Did anyone use the red emergency stop, or only the normal black Stop button?
+
+Operator: We used the normal Stop button first. Later we tested the emergency stop because we were worried. The emergency stop worked and removed motion.
+
+Technician: Thank you. Is there any product or packaging still on the conveyor?
+
+Operator: No. We removed all boxes and cleaned the belt. The area is clear.
+
+Technician: Is this conveyor connected to any other machine that could start it remotely?
+
+Operator: Yes. The line controller can start it, and packing station two sends a ready signal. Both machines are in manual mode now.
+
+Technician: Keep them in manual mode. Do not open any electrical cabinet during this call. We will only use the normal controls and information shown on the display.
+
+Operator: Understood. I am not authorised to open the electrical cabinet anyway.
+
+Technician: What is currently shown on the operator display?
+
+Operator: The top line says Line two manual. The status box says Ready. There is a yellow warning underneath: W dash two one seven, direction command changed.
+
+Technician: Please read the warning exactly as it appears, including punctuation or numbers.
+
+Operator: It reads, capital W hyphen two one seven colon direction command changed at zero eight colon two seven colon one four.
+
+Technician: So the timestamp is 08:27:14. Is there another message before or after that one?
+
+Operator: Before it, I see I dash zero four two, product recipe loaded. After it, there is E dash four one seven dash B, reverse feedback active.
+
+Technician: Please confirm the error code. Was that E-417-B or E-471-B?
+
+Operator: It is E-417-B. Four one seven. I nearly said four seven one because the digits are small.
+
+Technician: That distinction helps. What product recipe is currently selected?
+
+Operator: Recipe P K G dash four four dash B. The product name is oat bars, box of twelve, batch zero two dash one zero dash two zero two six dash A.
+
+Technician: Was that the correct recipe for this morning's production?
+
+Operator: Yes. We used the same recipe yesterday without any trouble.
+
+Technician: Did maintenance work on the conveyor, motor, sensor, or control software since yesterday?
+
+Operator: A maintenance technician replaced a damaged sensor bracket at around six thirty this morning. He did not work on the motor. At least that is what the handover note says.
+
+Technician: Which sensor bracket was replaced?
+
+Operator: Photo sensor P E dash B twelve dash zero three. It detects a box leaving the metal detector.
+
+Technician: Can you see that sensor without entering the guarded area?
+
+Operator: Yes. It is about two metres in front of me. Its green power light is on. The orange detection light is off because there is no box.
+
+Technician: We can test its indication without starting the belt. Please hold an empty cardboard box in front of the sensor while staying outside the yellow line.
+
+Operator: One moment. I have an empty box. I am moving it in front of the sensor now. The orange light has turned on.
+
+Technician: Does the display show the sensor changing state?
+
+Operator: Yes. Input P E B twelve zero three changed from zero to one. When I remove the box, it goes back to zero.
+
+Technician: Good. The sensor appears to respond. Let us record some operating values before the test. What speed is selected on the display?
+
+Operator: The set speed is eighteen point five metres per minute. The actual speed is zero because the belt is stopped.
+
+Technician: What motor frequency and current are displayed?
+
+Operator: Frequency is zero point zero hertz. Current is zero point two amps. The drive temperature is thirty seven point six degrees Celsius.
+
+Technician: Please check whether the display has a direction field. It may say forward, reverse, F W D, or R E V.
+
+Operator: I see a field called requested direction. It says reverse. Below it, actual direction says stopped.
+
+Technician: That explains why the belt moved backwards, but we still need to find what requested reverse. Do you see a direction button on this screen?
+
+Operator: There are two arrow buttons. One points right and one points left. The left arrow is highlighted blue.
+
+Technician: On the drawing attached to this machine, the right arrow should represent forward toward packing station two. Has anyone touched those arrows today?
+
+Operator: The first operator says she did not. However, the touch screen was cleaned at shift change. Someone could have pressed the left arrow while wiping it.
+
+Technician: That is possible. Before changing it, please tell me whether the screen has a lock symbol or an edit mode indicator.
+
+Operator: There is an open padlock in the top-right corner. It says manual controls unlocked.
+
+Technician: We will select forward, but first make sure everybody near the line knows there will be a short test.
+
+Operator: I will announce it now. Attention, conveyor B twelve will be tested in manual mode. Please remain clear of the line. The area is clear.
+
+Technician: Thank you. Tap the right arrow once. Do not press Start yet. Tell me what changes.
+
+Operator: I tapped it. The right arrow is blue now. Requested direction changed to forward. A message appeared: direction selection pending confirmation.
+
+Technician: Is there a Confirm button?
+
+Operator: Yes, a green Confirm button and a grey Cancel button.
+
+Technician: Press Confirm once.
+
+Operator: Done. Requested direction now says forward. The yellow W-217 warning has disappeared, but E-417-B is still listed in the history.
+
+Technician: Historical errors can remain listed. Is there an active red error banner anywhere on the main screen?
+
+Operator: No red banner. The main status says Ready in green.
+
+Technician: Before starting, check the physical direction arrow sticker on the conveyor frame. Which way does it point?
+
+Operator: It points toward packing station two, from left to right when I face the control panel.
+
+Technician: Good. For the first test, reduce the speed from eighteen point five to five point zero metres per minute.
+
+Operator: I selected the speed field. It currently shows eighteen point five. I am entering five point zero and pressing Enter.
+
+Technician: What does it show now?
+
+Operator: Set speed five point zero metres per minute. A small note says temporary manual speed.
+
+Technician: Place one empty test box before the sensor, but keep your hands away from the belt after placing it.
+
+Operator: The box is in position. It has a red TEST label and no product inside.
+
+Technician: We will run the belt for about two seconds. Keep one hand near the normal Stop button, without leaning over the conveyor. Press Start, observe the direction, and press Stop after the box moves about half a metre.
+
+Operator: Starting now. The belt is moving to the right. The box is moving toward packing station two. I pressed Stop. It stopped normally.
+
+Technician: Excellent. Did the box move smoothly, or did you notice slipping, jumping, or unusual noise?
+
+Operator: It moved smoothly. I heard a short click when the motor started, but that is the normal brake release sound.
+
+Technician: What actual speed was shown during the test?
+
+Operator: It reached four point nine metres per minute, then returned to zero.
+
+Technician: And what was the highest motor current you saw?
+
+Operator: Two point eight amps. The normal range printed beside the display is two point zero to three point five amps at low speed.
+
+Technician: Those values look reasonable. Let us perform a second test at twelve point zero metres per minute with two empty boxes spaced about one metre apart.
+
+Operator: I have changed the set speed to twelve point zero. I am placing box T dash zero zero one and box T dash zero zero two on the belt.
+
+Technician: Please check the area again and announce the test.
+
+Operator: Attention, second test of conveyor B twelve. Please stay clear. Packing station two is in manual, the metal detector is in manual, and the path is clear.
+
+Technician: Start the conveyor and let both boxes reach the end. Stop the belt if anything looks wrong.
+
+Operator: Starting. Box T-001 passed the sensor. Box T-002 passed it as well. Both are moving toward the packing station. The belt stopped automatically when the second box reached the end sensor.
+
+Technician: Did you press Stop, or did the control sequence stop it?
+
+Operator: The sequence stopped it. The status says waiting for downstream ready.
+
+Technician: That is expected because packing station two is still in manual. Please read the event log entries created during this test.
+
+Operator: At 09:06:31, manual run forward. At 09:06:34, P E B twelve zero three rising edge. At 09:06:39, second rising edge. At 09:06:46, downstream not ready, controlled stop.
+
+Technician: Thank you. No new E-417-B error appeared?
+
+Operator: No. Only the older error at 08:27:14 remains in the history.
+
+Technician: We should check whether the direction selection survives a normal controller restart. Before doing that, remove the two test boxes and confirm there is no product on the belt.
+
+Operator: Both test boxes are removed. The belt is empty.
+
+Technician: Use only the Restart controller button on the display. Do not turn off the main electrical isolator.
+
+Operator: I found Settings, then Controller, then Restart. It asks, restart control application? Estimated time forty-five seconds.
+
+Technician: Select Yes. The screen may go dark briefly. Tell me what you observe.
+
+Operator: I selected Yes. The status says shutting down control application. The screen is grey now. I can still see the Repak logo.
+
+Technician: That is normal. We can wait. While it restarts, I will create support case R P K dash two zero two six dash one zero dash zero two dash zero seven eight.
+
+Operator: Can you repeat the last part of the case number?
+
+Technician: Certainly. The full case is RPK-2026-10-02-078. The final three digits are zero seven eight.
+
+Operator: I have written RPK-2026-10-02-078 in the maintenance log.
+
+Technician: Good. Has the display returned?
+
+Operator: Yes. It now says controller online. The clock shows 09:08:12, which is one minute behind my phone.
+
+Technician: A small clock difference will not affect this test, but please mention it in the maintenance log. What direction is selected after the restart?
+
+Operator: Requested direction says forward. The right arrow is blue, and the manual speed has returned to eighteen point five metres per minute.
+
+Technician: That means direction was saved but temporary speed was not, which is expected. Are there any active warnings?
+
+Operator: There is one yellow message: C dash zero one one, line time differs from network time by sixty three seconds.
+
+Technician: That matches the clock difference you noticed. It is unrelated to belt direction, but the system administrator should synchronise the controller later.
+
+Operator: I will add that. Should we test the conveyor once more after the restart?
+
+Technician: Yes. Use a single empty box at the normal speed of eighteen point five metres per minute. Keep the connected machines in manual mode.
+
+Operator: The test box is ready. Area clear. Starting now. The box moved forward, passed the sensor, and reached the end. I pressed Stop.
+
+Technician: Did the actual speed reach the set value?
+
+Operator: It reached eighteen point four, then briefly eighteen point six, and settled at eighteen point five metres per minute.
+
+Technician: What were the motor current and drive temperature at that speed?
+
+Operator: Current was four point eight five amps. Temperature was thirty eight point two degrees Celsius.
+
+Technician: Both values are within the expected range. Please open the direction settings screen again without changing anything. Is there an option called lock manual direction controls?
+
+Operator: Yes. It is currently switched off.
+
+Technician: Do you have supervisor permission to switch it on?
+
+Operator: Yes. I am signed in as shift supervisor, level three.
+
+Technician: Switch on lock manual direction controls. This should prevent accidental direction changes during screen cleaning.
+
+Operator: I switched it on. The padlock is now closed. If I tap the left arrow, it asks for a supervisor code instead of changing direction.
+
+Technician: Do not enter the code. Select Cancel and return to the main screen.
+
+Operator: Cancelled. The direction remains forward.
+
+Technician: Good. We should also confirm the cleaning procedure. Does your handover checklist say the touch screen must be locked before cleaning?
+
+Operator: I am checking the digital checklist. Step six says place the line in manual and wipe the screen. It does not mention locking the controls.
+
+Technician: Please ask your supervisor or safety coordinator to update that instruction. The recommended sequence is stop the line, place it in manual, lock the touch controls, clean the screen, and verify the selected direction before restarting.
+
+Operator: I am the shift supervisor today, so I will add a temporary note now and ask our safety coordinator, Lena Visser, to approve the permanent change.
+
+Technician: Excellent. Please do not treat our support call as a replacement for your company's safety approval process.
+
+Operator: Understood. I added temporary note T N dash two zero two six dash one zero dash zero two dash zero four.
+
+Technician: Let us summarise the evidence. The conveyor reversed after the screen was cleaned. The display showed reverse requested, error E-417-B, and warning W-217. The sensor worked correctly, and the belt ran forward after selecting and confirming the correct direction.
+
+Operator: Correct. We tested at five point zero, twelve point zero, and eighteen point five metres per minute. All three tests moved forward.
+
+Technician: The likely cause is an accidental manual direction selection while the unlocked touch screen was being cleaned. We locked manual direction controls to reduce the chance of it happening again.
+
+Operator: That matches what we observed. Is it safe to return conveyor B twelve to automatic mode?
+
+Technician: Based on these tests, the conveyor controls are responding normally. Follow your site procedure: remove test materials, confirm guards are closed, notify nearby staff, and have the responsible supervisor authorise the return to production.
+
+Operator: I confirm both test boxes are removed, guards are closed, and nobody is inside the restricted area. I will not restart production until the line leader signs the release.
+
+Technician: Good. Please also ask maintenance to review the event log and confirm no wiring or software changes were made this morning.
+
+Operator: I will assign that to maintenance technician Arjen Smit. His internal work order will be W O dash seven seven one nine dash B.
+
+Technician: I have added work order WO-7719-B to the support case. Could you repeat your email address for the report?
+
+Operator: It is maya dot de vries at north harbour foods dot example. De Vries is D E, space, V R I E S.
+
+Technician: Thank you. I will send the summary under case RPK-2026-10-02-078. It will include the readings, error codes, and recommended procedure update.
+
+Operator: Please include the clock warning C-011 as a separate minor item, so our system administrator can correct it without confusing it with the conveyor fault.
+
+Technician: I have marked C-011 as a separate low-priority clock synchronisation item. It did not cause the reverse movement.
+
+Operator: Great. Before we finish, can you repeat the three things we need to do after this call?
+
+Technician: First, have maintenance review the event log and morning work under WO-7719-B. Second, have the safety coordinator approve the revised screen-cleaning procedure. Third, have the system administrator correct the sixty-three-second clock difference.
+
+Operator: I have all three. Maintenance review, cleaning procedure update, and clock synchronisation.
+
+Technician: Is there anything else unusual on conveyor B twelve or the connected packing station?
+
+Operator: No. The line is quiet, there are no active red errors, and requested direction still says forward.
+
+Technician: Then we can close the live troubleshooting part of the call. Keep the case number in your shift log and contact us again if E-417-B returns without anyone changing the direction setting.
+
+Operator: Understood. Thank you for taking the time to test it carefully instead of just telling us to restart everything.
+
+Technician: You are welcome, Maya. Careful checks give us a much better record. Have a safe shift.
+
+Operator: Thank you, Harm. Goodbye.
+
+Technician: Goodbye.
