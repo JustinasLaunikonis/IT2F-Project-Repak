@@ -1,11 +1,223 @@
-Operator: Hello, our label printer keeps printing the word banana.
+Operator: Hello, this is Daniel Okafor from Green Valley Packaging. Our label printer has printed the word banana on forty-eight boxes of tomato soup.
 
-Technician: Does it print banana on every label?
+Technician: Hello, Daniel. This is Harm at Repak technical support. Before we investigate, has the packing line been stopped?
 
-Operator: Yes. We now have fifty boxes called banana.
+Operator: Yes. Line three is stopped, and the printer is paused. Nobody is touching the print head or the conveyor.
 
-Technician: Please clear the print queue and select the correct label template.
+Technician: Good. Please give me the site number, machine number, and printer model.
 
-Operator: The correct product name is printing now.
+Operator: Site number G V P dash zero four two. Machine number 2026-MCH-P2-88417. The printer is a LabelJet L X dash four hundred plus.
 
-Technician: Great. The wrong template was selected.
+Technician: I heard machine 2026-MCH-P2-88417 and printer LabelJet LX-400+. Is that correct?
+
+Operator: Yes, although the plus sign is part of the model name. It is L X dash four hundred plus.
+
+Technician: Understood. What time did the incorrect labels begin?
+
+Operator: The first bad label appeared at 10:14 this morning. The previous batch ended normally at 10:08.
+
+Technician: What product should the label show?
+
+Operator: It should say tomato soup, six hundred millilitres, batch T S dash two zero two six dash one zero dash zero three dash B.
+
+Technician: And what is actually printed?
+
+Operator: The large product field says BANANA TEST. The barcode and expiry date are also wrong. The funny part stopped being funny after the tenth box.
+
+Technician: I understand. Please keep every affected box separated from good production. What expiry date is printed on the incorrect label?
+
+Operator: It says 31 slash 12 slash 2099. The correct expiry date should be 18 slash 04 slash 2027.
+
+Technician: What barcode is printed?
+
+Operator: It shows 9 999999 999999. The correct barcode is 8 714205 601237.
+
+Technician: Thank you. Is there an active warning or error on the printer display?
+
+Operator: There is an amber warning: W-302, template changed outside production job. The job name says DEMO-BANANA-01.
+
+Technician: Please read the selected production job shown on the main line display.
+
+Operator: The line display says JOB-TS-600-B, but the printer itself says DEMO-BANANA-01.
+
+Technician: That means the line and printer disagree. Did anyone run a maintenance or training test today?
+
+Operator: Our trainee tested the printer at 09:45. She used a sample template to learn how to replace a label roll.
+
+Technician: Did she finish the training job and return the printer to automatic mode?
+
+Operator: She says she pressed Exit, but she cannot remember whether she cleared the sample job.
+
+Technician: That may explain it. We will inspect the print queue without printing anything. Can you open Queue from the printer display?
+
+Operator: Yes. I see four items. The first is DEMO-BANANA-01 with quantity ninety-nine. The second is JOB-TS-600-B with quantity one thousand two hundred.
+
+Technician: What are the third and fourth items?
+
+Operator: Third is TEST@LINE-03! with quantity one. Fourth is CALIBRATION#25 with quantity two.
+
+Technician: Please confirm the symbols. Is the third job TEST, at sign, LINE, hyphen, zero three, exclamation mark?
+
+Operator: Correct. TEST@LINE-03! is a fictional stress-test job. It is not a username or password.
+
+Technician: And the fourth is CALIBRATION followed by a hash sign and the number twenty-five?
+
+Operator: Yes, CALIBRATION#25.
+
+Technician: Do not delete anything yet. Which queue item has a green arrow beside it?
+
+Operator: DEMO-BANANA-01 has the green arrow. JOB-TS-600-B has a clock symbol.
+
+Technician: That confirms the demo job is active. Before changing it, please record the printer settings. What print speed and darkness are displayed?
+
+Operator: Speed is two hundred fifty millimetres per second. Darkness is seventy-two percent. Print-head temperature is forty-one point eight degrees Celsius.
+
+Technician: What is the label roll identification number?
+
+Operator: Roll ID L B L dash eight eight dash four zero two dash C. It contains labels one hundred millimetres wide and sixty millimetres high.
+
+Technician: Does that match the tomato soup job specification?
+
+Operator: Yes. The job specification says one hundred by sixty millimetres, gap three point zero millimetres.
+
+Technician: Please check the sensor value without placing your fingers near the rollers.
+
+Operator: The gap sensor reads two point nine eight millimetres. Media status says loaded and calibrated.
+
+Technician: Good. The hardware values look normal. We will cancel only the active demo job. Select DEMO-BANANA-01 and tell me which options appear.
+
+Operator: I see Pause, Cancel, Move down, and Details.
+
+Technician: Select Cancel. If it asks for confirmation, read the message before accepting.
+
+Operator: The message says, cancel job DEMO-BANANA-01, forty-eight of ninety-nine labels printed, question mark.
+
+Technician: Select Yes.
+
+Operator: Done. The green arrow moved to JOB-TS-600-B, but the printer remains paused.
+
+Technician: Good. Open Details for JOB-TS-600-B and read the template name and revision.
+
+Operator: Template TOMATO-SOUP-600ML, revision R-07. Data file TS_600_B_2026-10-03.csv.
+
+Technician: Does the data preview show the correct batch and expiry date?
+
+Operator: Batch is TS-2026-10-03-B. Expiry is 18-04-2027. Barcode is 8714205601237.
+
+Technician: Excellent. Is there a field called verification text?
+
+Operator: Yes. It contains Q A at sign R E P A K hash zero three dollar percent caret ampersand star open parenthesis close parenthesis plus.
+
+Technician: Please read the exact displayed string, including the symbols.
+
+Operator: It is QA@REPAK#03$%^&*()+. That is Q A, at sign, R E P A K, hash, zero three, dollar, percent, caret, ampersand, star, open parenthesis, close parenthesis, plus.
+
+Technician: Thank you. That fictional verification string is useful for testing transcription, but it should not appear on the customer-facing part of the label. Is it marked internal only?
+
+Operator: Yes. The field says internal verification, do not print.
+
+Technician: Let us produce one test label. First confirm the conveyor is still stopped and no product will be released.
+
+Operator: Conveyor stopped, gate closed, and production release disabled. I have placed a blank test card at the collection tray.
+
+Technician: Select Print test copy, quantity one. Do not resume the complete job yet.
+
+Operator: I selected one test copy. The printer is asking whether to use current data row zero zero zero one.
+
+Technician: Select Yes and collect the label after it exits.
+
+Operator: It printed. I have the test label in my hand.
+
+Technician: Please compare each important field with the approved job data.
+
+Operator: Product says tomato soup. Volume says 600 ml. Batch says TS-2026-10-03-B. Expiry says 18-04-2027.
+
+Technician: What about the barcode and allergen statement?
+
+Operator: Barcode digits are 8714205601237. Allergen statement says may contain celery. The old banana text is gone.
+
+Technician: Check whether the barcode scanner accepts it.
+
+Operator: I am scanning now. The scanner beeped once and shows GTIN 08714205601237, valid.
+
+Technician: Good. Is the print centred and readable?
+
+Operator: Mostly. The text begins about one millimetre too far left, but nothing is cut off.
+
+Technician: What was the approved horizontal offset for this job?
+
+Operator: The job details say plus one point five millimetres. The printer currently shows plus zero point five millimetres.
+
+Technician: That setting may have been changed during training. Set the horizontal offset to plus one point five millimetres.
+
+Operator: Done. It now reads +1.5 mm.
+
+Technician: Print a second test copy and compare it with the first.
+
+Operator: The second label is printed. The text is centred now, and the barcode scanner reports valid again.
+
+Technician: Please inspect the print for missing dots, pale lines, or smearing.
+
+Operator: There is no smearing. I can see one tiny pale line through the letter O in soup.
+
+Technician: Does the printer's maintenance screen show a failed print-head element?
+
+Operator: Diagnostics says element test: pass, zero failed dots. The pale line may be a mark on the test card.
+
+Technician: Try the label on a clean card before changing any hardware settings.
+
+Operator: I placed it on a clean card. The print looks complete. You were right; the first card had a scratch.
+
+Technician: Great. We will now verify that the correct job stays selected after a normal pause and resume. Press Pause, wait five seconds, then press Resume.
+
+Operator: Paused. One, two, three, four, five. Resumed. JOB-TS-600-B still has the green arrow.
+
+Technician: Did any warning appear?
+
+Operator: W-302 changed from active to history. No new errors are active.
+
+Technician: Before production resumes, how many incorrectly labelled boxes were isolated?
+
+Operator: Forty-eight boxes. They are on pallet HOLD-03-2026-10-03 with a red quality tag.
+
+Technician: Please do not release them until your quality team decides whether to relabel or reject them.
+
+Operator: Understood. Quality inspector Sofia Jansen is taking responsibility for that pallet.
+
+Technician: I will create support case RPK-2026-10-03-114. Please repeat it back.
+
+Operator: RPK-2026-10-03-114. Final digits one one four.
+
+Technician: Correct. I recommend adding a training step that clears demo jobs and verifies the active production template before the line leaves manual mode.
+
+Operator: I will update checklist CL-PRINT-09, revision three. Should we also restrict the demo templates?
+
+Technician: Yes. Ask your system administrator to place training templates in a separate folder and require supervisor approval before they can enter the production queue.
+
+Operator: I will create internal action A C T dash four seven two plus B for that change.
+
+Technician: Please clarify: is the plus sign part of the action number?
+
+Operator: Yes. The fictional action ID is ACT-472+B, including the plus sign.
+
+Technician: Noted. Let us summarise. The printer hardware was working normally, but the demo job remained active above the production job.
+
+Operator: Correct. We cancelled DEMO-BANANA-01, verified JOB-TS-600-B, restored the +1.5 millimetre offset, and printed two correct test labels.
+
+Technician: The quarantined pallet contains forty-eight boxes, and quality control will decide how to correct them.
+
+Operator: Correct. No affected box will be shipped.
+
+Technician: Is the printer still paused while you wait for production approval?
+
+Operator: Yes. The correct job is selected, but production release remains disabled.
+
+Technician: Excellent. Once your quality and line supervisors approve, follow your normal start-up inspection before resuming.
+
+Operator: Thank you, Harm. This was much better than shipping forty-eight mysterious boxes of banana soup.
+
+Technician: I agree. I will email the report for case RPK-2026-10-03-114. Have a good shift.
+
+Operator: Thank you. Goodbye.
+
+Technician: Goodbye.
