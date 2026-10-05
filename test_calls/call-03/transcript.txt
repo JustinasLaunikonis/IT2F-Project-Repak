@@ -1,0 +1,267 @@
+Operator: Hello, this is Priya Raman from Riverside Distribution. Our robot arm has stopped stacking boxes and appears to wave whenever a new box arrives.
+
+Technician: Hello, Priya. You are speaking with Harm at Repak technical support. Has the robot cell been placed in a safe stopped condition?
+
+Operator: Yes. The cell is in manual mode, the conveyor is stopped, and the gate is closed. Nobody is inside the fenced area.
+
+Technician: Good. Do not enter the cell or bypass any safety device during this call. Please give me the machine and robot identification numbers.
+
+Operator: Machine number 2025-RBT-C7-44082. Robot ID R A dash zero seven. Controller model is MotionCore M C dash nine hundred.
+
+Technician: I have machine 2025-RBT-C7-44082, robot RA-07, and controller MC-900. What is the gripper model?
+
+Operator: Gripper model V G dash two twenty plus. The plus sign is part of the model name.
+
+Technician: Thank you. When did the unusual movement begin?
+
+Operator: At 13:22 today. The robot finished pallet number P L T dash seven eight one, then started the next job. The first arriving box made the robot move left and right like it was waving.
+
+Technician: Did the arm leave its guarded working area or strike anything?
+
+Operator: No. It stayed inside the cell and did not touch the fence, conveyor, or boxes. We pressed the normal cycle stop after the second wave.
+
+Technician: Was the emergency stop used?
+
+Operator: No. The normal stop worked immediately, so we did not use the emergency stop.
+
+Technician: What product should the robot be handling?
+
+Operator: Cartons of coffee pods, twelve boxes per layer and six layers per pallet. Each carton weighs eight point four kilograms.
+
+Technician: What is the production job number?
+
+Operator: JOB-CP12-6L-2026-10-03-C. The pallet pattern should be pattern P dash twelve dash C.
+
+Technician: Please read the controller status and any active messages.
+
+Operator: Status says Program paused. Active program says DEMO-WAVE-V2. Warning W-611 says production program does not match line recipe.
+
+Technician: Is there also an error code?
+
+Operator: Yes. E-204-A says target position outside selected pallet pattern, but it is yellow rather than red.
+
+Technician: Please confirm whether the code is E-204-A or E-240-A.
+
+Operator: It is E-204-A. Two zero four. The screen font makes zero and four look similar.
+
+Technician: Understood. Did anyone use the controller for training, maintenance, or a demonstration earlier today?
+
+Operator: A visiting student group was here at 11:30. Our trainer loaded a waving demonstration but said he restored production afterward.
+
+Technician: That is useful information. We will inspect the program list without running the robot. What programs appear under Recent?
+
+Operator: DEMO-WAVE-V2 is first. PROD-PALLET-CP12 is second. HOME-SAFE-01 is third. TEST@ROBOT-07! is fourth.
+
+Technician: Please repeat the fourth name with its symbols.
+
+Operator: TEST@ROBOT-07! That is TEST, at sign, ROBOT, hyphen, zero seven, exclamation mark.
+
+Technician: Is that a real credential?
+
+Operator: No. It is only a fictional program name used for transcription testing. It contains no password or customer data.
+
+Technician: Good. Is there another diagnostic label containing more symbols?
+
+Operator: Yes. The notes field shows QA#5$%^&*()+OK.
+
+Technician: Please say every character in order.
+
+Operator: Q A, hash sign, five, dollar sign, percent sign, caret, ampersand, star, open parenthesis, close parenthesis, plus sign, O K.
+
+Technician: Thank you. That gives us the displayed string QA#5$%^&*()+OK. Now return to the program screen without selecting anything.
+
+Operator: I am back on the program screen. DEMO-WAVE-V2 is marked active, and PROD-PALLET-CP12 is marked approved.
+
+Technician: That likely explains the movement. Before changing programs, record the current robot position values shown on the status page.
+
+Operator: Axis one is plus twelve point six degrees. Axis two is minus thirty-four point two. Axis three is plus seventy-one point zero.
+
+Technician: Continue with axes four, five, and six.
+
+Operator: Axis four is zero point zero. Axis five is plus forty-five point eight. Axis six is minus ninety point one degrees.
+
+Technician: What is the selected speed override?
+
+Operator: It shows twenty-five percent. Production normally uses sixty-five percent.
+
+Technician: Keep it at twenty-five percent for testing. What payload is configured?
+
+Operator: Configured payload is nine point two kilograms, including the gripper. Expected carton payload says eight point four kilograms.
+
+Technician: Does the vacuum system show any problem?
+
+Operator: Vacuum pressure is minus sixty-one point five kilopascals. The acceptable range is minus fifty-five to minus seventy.
+
+Technician: That value is within range. Check the incoming box sensor without entering the cell. Can you place a test carton on the external conveyor loading point?
+
+Operator: Yes. I have test carton T C dash zero zero nine. I placed it before sensor P E dash C seven dash zero one.
+
+Technician: Does the sensor indicator change?
+
+Operator: The green light stays on and the amber detection light turns on. Controller input I-17 changes from zero to one.
+
+Technician: Remove the test carton again.
+
+Operator: Removed. I-17 returned to zero.
+
+Technician: The sensor appears to work. We will switch from the demonstration program to the approved production program, but we will not start automatic operation yet.
+
+Operator: Understood. I selected PROD-PALLET-CP12. The controller asks for pattern confirmation.
+
+Technician: What pattern and product does it display?
+
+Operator: Pattern P-12-C, product coffee pods, twelve cartons per layer, six layers, maximum pallet height one thousand four hundred forty millimetres.
+
+Technician: Does that match your work order?
+
+Operator: Yes. Work order WO-CP-6107 specifies the same values.
+
+Technician: Select Confirm and tell me what changes.
+
+Operator: Confirmed. Active program now says PROD-PALLET-CP12. Warning W-611 disappeared. E-204-A remains only in history.
+
+Technician: Is the Home position indicator green?
+
+Operator: No. It is amber and says robot not at production home.
+
+Technician: Do not move the robot manually unless you are trained and authorised. Are you authorised to run the automatic safe-home command from outside the cell?
+
+Operator: Yes. I am certified for operator level two, and the safe-home command is part of our restart procedure.
+
+Technician: Confirm the cell is empty, the gate is closed, and everybody is outside the marked area.
+
+Operator: Cell empty, gate closed, safety scanner clear, and three people are standing behind the blue line.
+
+Technician: Select Safe Home at the current twenty-five percent speed. Keep your hand near the normal cycle stop and observe the movement.
+
+Operator: Starting Safe Home. The robot is moving slowly upward, rotating right, and lowering the gripper over the pickup position. It has stopped.
+
+Technician: What does the Home indicator show now?
+
+Operator: Green. Position name is HOME-CP12-01.
+
+Technician: Did the robot move smoothly without vibration or unusual sound?
+
+Operator: Yes. I heard the normal air valve click. There was no contact with equipment.
+
+Technician: We can perform a dry-cycle test without a box. Does your procedure allow Dry Run with the conveyor stopped?
+
+Operator: Yes. Dry Run is permitted at twenty-five percent when the cell is empty and the gate is closed.
+
+Technician: Start one dry cycle and describe each step.
+
+Operator: Starting. The robot moved to the pickup point, lowered the empty gripper, simulated vacuum, raised, rotated toward the pallet, lowered to layer one position one, then returned home.
+
+Technician: Did it wave or make any unexpected sideways movement?
+
+Operator: No. It followed a normal rectangular path.
+
+Technician: Check the cycle result and duration.
+
+Operator: Result PASS. Duration eighteen point seven seconds. Planned duration is between seventeen and twenty-one seconds.
+
+Technician: Good. Let us test with one empty carton. Verify its weight before placing it on the conveyor.
+
+Operator: Test carton TC-009 weighs one point two kilograms because it is empty. I have entered test payload one point two kilograms.
+
+Technician: Place it at the external loading point, close the loading gate, and confirm the area is clear.
+
+Operator: Carton placed, loading gate closed, cell clear, and test mode active.
+
+Technician: Run one test cycle at twenty-five percent speed.
+
+Operator: Starting now. The conveyor moved the carton to the pickup sensor. The robot picked it up, moved to pallet position one, placed it, and returned home.
+
+Technician: What vacuum values were recorded during pickup and release?
+
+Operator: Pickup reached minus sixty-three point two kilopascals. Release returned to minus two point one within zero point six seconds.
+
+Technician: Were there any grip-loss warnings?
+
+Operator: No. Cycle result PASS, duration twenty-three point four seconds at reduced speed.
+
+Technician: Remove the test carton using your normal safe procedure before the next test.
+
+Operator: The test carton has been removed from the pallet station. The robot remains at home.
+
+Technician: We should verify that the production program remains selected after a controller pause and resume. Press Pause, wait five seconds, then Resume without starting a cycle.
+
+Operator: Paused. One, two, three, four, five. Resumed. PROD-PALLET-CP12 remains active.
+
+Technician: What pallet pattern is still selected?
+
+Operator: P-12-C, twelve cartons per layer, six layers.
+
+Technician: Excellent. Is there a program-lock option on the operator screen?
+
+Operator: Yes. It says lock demonstrations during production. It is currently off.
+
+Technician: Do you have supervisor approval to enable it?
+
+Operator: The shift supervisor, Miguel Santos, is beside me and has approved it. I am switching it on now.
+
+Technician: What confirmation appears?
+
+Operator: Demonstration programs locked while production recipe is active. Supervisor code required to unlock.
+
+Technician: Do not say or enter a real supervisor code for this recording. Cancel any prompt if one appears.
+
+Operator: No code is visible. The lock icon is closed.
+
+Technician: Good. Try selecting DEMO-WAVE-V2 without unlocking it.
+
+Operator: I tapped it. A message says unavailable during production. The active program remains PROD-PALLET-CP12.
+
+Technician: That control should prevent the same problem. Please record the training session reference from this morning.
+
+Operator: Training reference TRN-2026-10-03-(A)+. It includes open parenthesis, A, close parenthesis, plus.
+
+Technician: Thank you. I will create support case RPK-2026-10-03-126 and link training reference TRN-2026-10-03-(A)+.
+
+Operator: I have written support case RPK-2026-10-03-126. Final digits one two six.
+
+Technician: Please also record the original warning W-611 and historical error E-204-A.
+
+Operator: Recorded. W-611 program mismatch, E-204-A target outside selected pallet pattern.
+
+Technician: Before production resumes, the correct payload must be restored from one point two kilograms to the normal carton value.
+
+Operator: I selected product data and restored payload eight point four kilograms. The total configured payload including gripper is nine point two kilograms.
+
+Technician: Please verify the speed setting. Do not change to full production speed until your site restart checklist allows it.
+
+Operator: Speed override remains twenty-five percent. Our checklist requires a supervisor-controlled trial at forty percent before returning to sixty-five percent.
+
+Technician: Follow that local procedure after this call. Do not skip the trial cycle.
+
+Operator: Understood. The supervisor will control the restart.
+
+Technician: Let us summarise. The robot hardware, box sensor, vacuum system, and safety indications behaved normally during our tests.
+
+Operator: Correct. The waving happened because DEMO-WAVE-V2 was still active instead of PROD-PALLET-CP12.
+
+Technician: We loaded the approved production program, confirmed pallet pattern P-12-C, completed a dry cycle, and completed one empty-carton test.
+
+Operator: Both tests passed. We also locked demonstration programs while a production recipe is active.
+
+Technician: Please ask the trainer to update the end-of-demonstration checklist so the production program is restored and independently verified.
+
+Operator: I will create action ACT-ROBOT-318#B for Miguel and our trainer.
+
+Technician: Is the hash sign part of that fictional action ID?
+
+Operator: Yes. The exact action ID is ACT-ROBOT-318#B.
+
+Technician: Noted. Is the cell currently stopped, with the robot at home and the correct program selected?
+
+Operator: Yes. Robot at HOME-CP12-01, program PROD-PALLET-CP12, speed twenty-five percent, production start awaiting supervisor approval.
+
+Technician: Excellent. If the arm makes any unexpected movement during the supervised restart, stop the cycle and contact us using case RPK-2026-10-03-126.
+
+Operator: I will. Thank you for helping us turn the waving robot back into a working robot.
+
+Technician: You are welcome, Priya. I will send the case summary with the test readings and recommended checklist change.
+
+Operator: Thank you, Harm. Goodbye.
+
+Technician: Goodbye.
