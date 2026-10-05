@@ -207,22 +207,54 @@ async function transcribeRecording(files) {
         formData.append("caller", files.caller, "caller.wav");
     }
 
-    const response = await fetch("/transcribe", {
-        method: "POST",
-        body: formData,
-    });
+    let response;
+
+    try {
+        response = await fetch("/transcribe", {
+            method: "POST",
+            body: formData,
+        });
+    } catch {
+        //fetch only throws when the request never reached the server
+        throw new Error(
+            "The recording could not be uploaded. Check that the server is running and press Start again.",
+        );
+    }
 
     if (!response.ok) {
-        throw new Error(
-            "Transcription failed. Check the server and try again.",
-        );
+        throw new Error(await readServerError(response));
     }
 
     const result = await response.json();
     return result;
 }
 
-function handleUnexpectedStop(error, files) {
+//build a readable message from a failed server response
+async function readServerError(response) {
+    let detail = "";
+
+    try {
+        const body = await response.json();
+        if (typeof body.detail === "string") {
+            detail = body.detail; //FastAPI puts the HTTPException message in "detail"
+        }
+    } catch {
+        //the response had no JSON body, keep the generic message
+    }
+
+    let message =
+        "The server could not transcribe the recording (error " +
+        response.status +
+        ").";
+    if (detail !== "") {
+        message = message + " " + detail;
+    }
+
+    return message;
+}
+
+//make Start available again after a recording session ends
+function resetRecordingControls() {
     recordingSessionActive = false;
     stopRequested = false;
 
@@ -235,10 +267,18 @@ function handleUnexpectedStop(error, files) {
 
     microphoneSelect.disabled = false;
     listMicrophonesButton.disabled = false;
+}
+
+function showError(message) {
+    showState("error");
+    activityMessage.textContent = message;
+}
+
+function handleUnexpectedStop(error, files) {
+    resetRecordingControls();
 
     if (error !== null) {
-        showState("error");
-        activityMessage.textContent = error.message;
+        showError(error.message);
     } else {
         showRecordingReview(files);
         showState("idle");
@@ -312,11 +352,7 @@ startButton.addEventListener("click", async function () {
     const selectedMicrophoneId = microphoneSelect.value; //get id of the microphone chosen by user
 
     if (selectedMicrophoneId === "") {
-        showState("error");
-
-        activityMessage.textContent =
-            "List the microphones and choose one before the recording";
-
+        showError("List the microphones and choose one before the recording");
         return;
     }
 
@@ -351,20 +387,8 @@ startButton.addEventListener("click", async function () {
 
         showState("recording");
     } catch (error) {
-        recordingSessionActive = false;
-
-        connectionStatus.textContent = "Connection: Not connected";
-
-        startButton.disabled = false;
-        stopButton.disabled = true;
-
-        includeCaller.disabled = false;
-
-        microphoneSelect.disabled = false;
-        listMicrophonesButton.disabled = false;
-
-        showState("error");
-        activityMessage.textContent = error.message;
+        resetRecordingControls();
+        showError(error.message);
     }
 });
 
@@ -391,39 +415,15 @@ stopButton.addEventListener("click", async function () {
 
         callDetails["[transcriptie]"] = transcriptionResult.text;
 
-        recordingSessionActive = false;
-        stopRequested = false;
-
-        connectionStatus.textContent = "Connection: Not connected";
-
-        startButton.disabled = false;
-        stopButton.disabled = true;
-
-        includeCaller.disabled = false;
-
-        microphoneSelect.disabled = false;
-        listMicrophonesButton.disabled = false;
+        resetRecordingControls();
 
         showState("completed");
         activityMessage.textContent =
             "Microphone recording transcribed. Review the audio and transcript.";
     } catch (error) {
-        //reset the interface if recording cant be stopped
-        recordingSessionActive = false;
-        stopRequested = false;
-
-        connectionStatus.textContent = "Connection: Not connected";
-
-        startButton.disabled = false;
-        stopButton.disabled = true;
-
-        includeCaller.disabled = false;
-
-        microphoneSelect.disabled = false;
-        listMicrophonesButton.disabled = false;
-
-        showState("error");
-        activityMessage.textContent = error.message;
+        //reset the interface if recording cant be stopped or transcribed
+        resetRecordingControls();
+        showError(error.message);
     }
 });
 
