@@ -79,7 +79,12 @@ test("stopping capture closes every track and shows the transcript", async funct
                     connect: function () {}
                 };
             };
-            this.resume = async function () {};
+            this.suspend = async function () {
+                this.state = "suspended";
+            };
+            this.resume = async function () {
+                this.state = "running";
+            };
             this.close = async function () {
                 this.state = "closed";
             };
@@ -90,7 +95,10 @@ test("stopping capture closes every track and shows the transcript", async funct
             this.port = {
                 onmessage: null,
                 postMessage: function () {
-                    node.port.onmessage({ data: { chunk: new Int16Array([0, 100]) } });
+                    node.port.onmessage({ data: {
+                        harmChunk: new Int16Array([0, 100]),
+                        callerChunk: new Int16Array([100, 0])
+                    } });
                     node.port.onmessage({ data: { done: true } });
                 }
             };

@@ -95,3 +95,50 @@ def test_empty_segments_return_empty_result():
         "segments": [],
         "text": "",
     }
+
+
+def test_delayed_speech_and_interruptions_keep_original_timestamps():
+    harm_segments = [
+        {"start": 33.92, "end": 34.8, "text": "I can check that."},
+        {"start": 34.89, "end": 37.25, "text": "Let me finish."},
+    ]
+    caller_segments = [
+        {"start": 23.02, "end": 29.28, "text": "The first caller phrase."},
+        {"start": 34.12, "end": 35.8, "text": "One more detail."},
+    ]
+
+    result = merge_and_format_transcript(harm_segments, caller_segments)
+
+    # Sort by the original fractional times and keep both overlapping intervals.
+    assert result["segments"] == [
+        {
+            "speaker": "Caller",
+            "start": 23.02,
+            "end": 29.28,
+            "text": "The first caller phrase.",
+        },
+        {
+            "speaker": "Harm",
+            "start": 33.92,
+            "end": 34.8,
+            "text": "I can check that.",
+        },
+        {
+            "speaker": "Caller",
+            "start": 34.12,
+            "end": 35.8,
+            "text": "One more detail.",
+        },
+        {
+            "speaker": "Harm",
+            "start": 34.89,
+            "end": 37.25,
+            "text": "Let me finish.",
+        },
+    ]
+    assert result["text"] == (
+        "[00:00:23] Caller: The first caller phrase.\n"
+        "[00:00:33] Harm: I can check that.\n"
+        "[00:00:34] Caller: One more detail.\n"
+        "[00:00:34] Harm: Let me finish."
+    )

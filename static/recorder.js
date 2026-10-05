@@ -88,31 +88,29 @@ function reportUnexpectedStop(recording) {
     );
 }
 
-function connectSource(recording, stream, speaker) {
-    const audioStream = new MediaStream(stream.getAudioTracks());
-    const source = recording.context.createMediaStreamSource(audioStream);
+function createRecorderNode(recording) {
     const node = new AudioWorkletNode(recording.context, "pcm-recorder", {
+        numberOfInputs: 2,
+        numberOfOutputs: 1,
+        outputChannelCount: [1],
         channelCount: 1,
         channelCountMode: "explicit",
+        processorOptions: { includeCaller: recording.includeCaller },
     });
     node.port.onmessage = function (event) {
         const data = event.data;
-        if (data.chunk) {
-            if (speaker === "harm") {
-                recording.harmChunks.push(data.chunk);
-            } else {
-                recording.callerChunks.push(data.chunk);
-            }
+        if (data.harmChunk) {
+            recording.harmChunks.push(data.harmChunk);
+        }
+        if (data.callerChunk) {
+            recording.callerChunks.push(data.callerChunk);
         }
         if (data.done) {
             if (!recording.stopping) {
                 reportUnexpectedStop(recording);
                 requestStop(recording);
             }
-            recording.doneCount++;
-            if (recording.doneCount === recording.nodes.length) {
-                finish(recording);
-            }
+            finish(recording);
         }
     };
     node.onprocessorerror = function () {
@@ -120,9 +118,16 @@ function connectSource(recording, stream, speaker) {
         reportUnexpectedStop(recording);
         finish(recording);
     };
-    source.connect(node);
     node.connect(recording.context.destination);
     recording.nodes.push(node);
+    return node;
+}
+
+function connectSource(recording, stream, node, inputIndex) {
+    const audioStream = new MediaStream(stream.getAudioTracks());
+    const source = recording.context.createMediaStreamSource(audioStream);
+    // Both sources enter the same worklet, so sample zero is shared.
+    source.connect(node, 0, inputIndex);
 }
 
 function watchTracks(recording, stream) {
@@ -181,7 +186,6 @@ export async function startWavRecording(
     const recording = {
         callerChunks: [],
         context: null,
-        doneCount: 0,
         error: null,
         finished: false,
         finishedPromise: null,
@@ -233,6 +237,8 @@ export async function startWavRecording(
             throw new Error("The selected microphone did not provide audio.");
         }
         recording.context = new AudioContext();
+        // Connect both inputs before the recording clock starts.
+        await recording.context.suspend();
         if (recording.context.sampleRate < 16000) {
             throw new Error(
                 "This audio device does not support 16 kHz recording.",
@@ -245,10 +251,11 @@ export async function startWavRecording(
             recording.resolveFinished = resolve;
             recording.rejectFinished = reject;
         });
-        connectSource(recording, microphoneStream, "harm");
+        const node = createRecorderNode(recording);
+        connectSource(recording, microphoneStream, node, 0);
         watchTracks(recording, microphoneStream);
         if (includeCaller) {
-            connectSource(recording, displayStream, "caller");
+            connectSource(recording, displayStream, node, 1);
             watchTracks(recording, displayStream);
         }
         await recording.context.resume();

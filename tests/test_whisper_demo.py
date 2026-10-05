@@ -70,8 +70,9 @@ def test_transcription_uses_local_model_and_prints_segments(
         def __init__(self, model_name, device, compute_type, local_files_only):
             calls.append(("load", model_name, device, compute_type, local_files_only))
 
-        def transcribe(self, audio_path, beam_size):
-            calls.append(("transcribe", audio_path, beam_size))
+        def transcribe(self, audio_path, beam_size, word_timestamps):
+            assert word_timestamps is True
+            calls.append(("transcribe", audio_path, beam_size, word_timestamps))
             first_segment = types.SimpleNamespace(start=0.0, end=1.25, text="synthetic test")
             second_segment = types.SimpleNamespace(start=1.25, end=2.0, text="part two")
             information = types.SimpleNamespace(language="en", language_probability=0.75)
@@ -95,7 +96,7 @@ def test_transcription_uses_local_model_and_prints_segments(
 
     assert calls == [
         ("load", model_name, device, compute_type, True),
-        ("transcribe", "synthetic.wav", 5),
+        ("transcribe", "synthetic.wav", 5, True),
     ]
     captured = capsys.readouterr()
     output = captured.out
@@ -123,7 +124,8 @@ def test_explicit_cpu_and_model_override(monkeypatch, capsys):
         def __init__(self, model_name, device, compute_type, local_files_only):
             calls.append((model_name, device, compute_type, local_files_only))
 
-        def transcribe(self, audio_path, beam_size):
+        def transcribe(self, audio_path, beam_size, word_timestamps):
+            assert word_timestamps is True
             return [], types.SimpleNamespace(language="en", language_probability=1.0)
 
     fake_whisper.WhisperModel = FakeModel
@@ -152,7 +154,8 @@ def test_cuda_load_failure_falls_back_to_small_cpu_model(monkeypatch, capsys):
             if device == "cuda":
                 raise RuntimeError("missing CUDA library")
 
-        def transcribe(self, audio_path, beam_size):
+        def transcribe(self, audio_path, beam_size, word_timestamps):
+            assert word_timestamps is True
             return [], types.SimpleNamespace(language="en", language_probability=1.0)
 
     fake_whisper.WhisperModel = FakeModel
@@ -178,3 +181,35 @@ def test_generated_filename_preserves_extension(monkeypatch):
     monkeypatch.setattr(whisper_demo.time, "time", fixed_time)
 
     assert whisper_demo.generate_unique_filename("synthetic.wav") == "synthetic_1234567890.wav"
+
+def test_word_aligned_segments_keep_recording_timestamps(monkeypatch):
+    import whisper_demo
+
+    monkeypatch.setenv("WHISPER_DEVICE", "cpu")
+    monkeypatch.delenv("WHISPER_MODEL", raising=False)
+    monkeypatch.setattr(whisper_demo, "configure_windows_cuda_paths", lambda: None)
+    fake_whisper = types.ModuleType("faster_whisper")
+
+    class FakeModel:
+        def __init__(self, model_name, device, compute_type, local_files_only):
+            pass
+
+        def transcribe(self, audio_path, beam_size, word_timestamps):
+            assert word_timestamps is True
+            # These times include the silence before the first spoken words.
+            segments = [
+                types.SimpleNamespace(start=23.02, end=29.28, text=" Delayed hello. "),
+                types.SimpleNamespace(start=30.0, end=32.38, text=" The next phrase. "),
+            ]
+            information = types.SimpleNamespace(language="en", language_probability=1.0)
+            return segments, information
+
+    fake_whisper.WhisperModel = FakeModel
+    monkeypatch.setitem(sys.modules, "faster_whisper", fake_whisper)
+
+    result = whisper_demo.transcribe_audio_segments("delayed-speech.wav")
+
+    assert result == [
+        {"start": 23.02, "end": 29.28, "text": "Delayed hello."},
+        {"start": 30.0, "end": 32.38, "text": "The next phrase."},
+    ]

@@ -136,6 +136,35 @@ To run only this flow:
 npm run test:ui -- tests/ui/record-to-export.spec.js
 ```
 
+### Check microphone and caller timing
+
+Both recordings use one audio clock. Silence stays in each file, including
+periods when an input temporarily supplies no audio samples. The two WAVs
+start together and end on the same frame.
+
+Whisper uses word alignment to estimate segment boundaries against each
+untrimmed WAV. The transcript keeps those times when combining the speakers;
+it does not reset either speaker's first words to zero. Recognition times
+are estimates and still need comparison with a real conversation.
+
+Run the timing regression tests with:
+
+```powershell
+npm run test:ui -- tests/ui/recording-sync.spec.js
+```
+
+These tests check delayed starts, missing input, overlapping audio, and a
+shared stop boundary. They also use Chromium's real audio processor at
+44.1 and 48 kHz. They do not measure Whisper's recognition accuracy.
+
+Before completing issue #69, record a natural two-person test call with caller
+audio enabled. Have the caller wait before speaking, leave pauses, and include
+quick replies and interruptions. Download both WAVs and check that their
+durations match. Listen to both files from time zero and compare the transcript
+times and speaker order with the audio. Record the browser, model, device,
+and any timing differences in the PR. A consistent shift in either channel
+or an incorrect speaker order needs further investigation.
+
 ## Scripted test calls
 
 The `test_calls` directory contains five short synthetic English service calls for demonstrations, transcription accuracy checks, and automated testing.

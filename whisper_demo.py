@@ -84,7 +84,12 @@ def transcribe_audio_segments(audio_path):
     print(f"Using Whisper model: {model_name}; device: {device}; compute type: {compute_type}")
     print(f"Transcribing audio: {audio_path}")
 
-    segments, information = model.transcribe(audio_path, beam_size=5)
+    # Align segment boundaries to spoken words while keeping the WAV's time zero.
+    segments, information = model.transcribe(
+        audio_path,
+        beam_size=5,
+        word_timestamps=True,
+    )
     print(f"Detected language: {information.language}")
     print(f"Confidence: {information.language_probability:.2f}")
 

@@ -31,17 +31,18 @@ test("worklet converts 48 kHz input to 16 kHz PCM", function () {
     };
     vm.runInNewContext(sourceCode, globals);
 
-    const recorder = new recorderClass();
+    const recorder = new recorderClass({ processorOptions: { includeCaller: false } });
     const input = new Float32Array(480);
     for (let sampleIndex = 0; sampleIndex < input.length; sampleIndex++) {
         input[sampleIndex] = 0.5;
     }
-    recorder.process([[input]]);
+    recorder.process([[input]], [[new Float32Array(input.length)]]);
     recorder.port.onmessage({ data: "stop" });
 
     expect(messages.length).toBe(2);
-    expect(messages[0].chunk.length).toBe(160);
-    for (const sample of messages[0].chunk) {
+    expect(messages[0].harmChunk.length).toBe(160);
+    expect(messages[0].callerChunk).toBeUndefined();
+    for (const sample of messages[0].harmChunk) {
         expect(sample).toBe(16384);
     }
     expect(messages[1].done).toBe(true);
@@ -51,6 +52,7 @@ test("microphone and caller become separate 16 kHz mono WAV files", async functi
     await page.addInitScript(function () {
         window.captureTracksStopped = [];
         window.recordingNodes = [];
+        window.captureGraphEvents = [];
 
         function makeTrack(name) {
             return {
@@ -104,13 +106,15 @@ test("microphone and caller become separate 16 kHz mono WAV files", async functi
             this.createMediaStreamSource = function (stream) {
                 return {
                     stream: stream,
-                    connect: function (destination) {
+                    connect: function (destination, outputIndex, inputIndex) {
                         if (stream.tracks[0] === microphoneTrack) {
-                            destination.sourceName = "microphone";
+                            destination.microphoneInput = inputIndex;
                         } else {
-                            destination.sourceName = "caller";
+                            destination.callerInput = inputIndex;
                         }
-                    }
+                        window.captureGraphEvents.push("connect input " + inputIndex);
+                    },
+                    disconnect: function () {}
                 };
             };
             this.createGain = function () {
@@ -121,21 +125,28 @@ test("microphone and caller become separate 16 kHz mono WAV files", async functi
                     }
                 };
             };
-            this.resume = async function () {};
+            this.suspend = async function () {
+                this.state = "suspended";
+                window.captureGraphEvents.push("suspend");
+            };
+            this.resume = async function () {
+                this.state = "running";
+                window.captureGraphEvents.push("resume");
+            };
             this.close = async function () {
                 this.state = "closed";
             };
         };
-        window.AudioWorkletNode = function () {
+        window.AudioWorkletNode = function (context, name, options) {
             const node = this;
+            this.options = options;
             this.port = {
                 onmessage: null,
                 postMessage: function () {
-                    let samples = new Int16Array([1100, 1200]);
-                    if (node.sourceName === "caller") {
-                        samples = new Int16Array([-2100, -2200]);
-                    }
-                    node.port.onmessage({ data: { chunk: samples } });
+                    node.port.onmessage({ data: {
+                        harmChunk: new Int16Array([1100, 1200]),
+                        callerChunk: new Int16Array([-2100, -2200])
+                    } });
                     node.port.onmessage({ data: { done: true } });
                 }
             };
@@ -170,7 +181,15 @@ test("microphone and caller become separate 16 kHz mono WAV files", async functi
                 samples: [view.getInt16(44, true), view.getInt16(46, true)]
             };
         }
-        return { output: output, stopped: window.captureTracksStopped };
+        return {
+            output: output,
+            stopped: window.captureTracksStopped,
+            nodeCount: window.recordingNodes.length,
+            nodeOptions: window.recordingNodes[0].options,
+            microphoneInput: window.recordingNodes[0].microphoneInput,
+            callerInput: window.recordingNodes[0].callerInput,
+            graphEvents: window.captureGraphEvents
+        };
     });
 
     expect(result.output.harm).toEqual({
@@ -184,6 +203,14 @@ test("microphone and caller become separate 16 kHz mono WAV files", async functi
         samples: [-2100, -2200]
     });
     expect(result.stopped).toEqual(["caller", "video", "microphone"]);
+    expect(result.nodeCount).toBe(1);
+    expect(result.nodeOptions.numberOfInputs).toBe(2);
+    expect(result.nodeOptions.processorOptions.includeCaller).toBe(true);
+    expect(result.microphoneInput).toBe(0);
+    expect(result.callerInput).toBe(1);
+    expect(result.graphEvents).toEqual([
+        "suspend", "connect input 0", "connect input 1", "resume"
+    ]);
 });
 
 test("missing shared audio stops acquired tracks and permits another attempt", async function ({ page }) {

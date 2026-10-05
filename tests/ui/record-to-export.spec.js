@@ -148,7 +148,7 @@ function observeRealMicrophoneChunks() {
                 port.addEventListener("message", function noticeRecordedAudio(event) {
                     const message = event.data;
                     if (message !== null && typeof message === "object") {
-                        const audioChunk = message.chunk;
+                        const audioChunk = message.harmChunk;
                         if (audioChunk instanceof Int16Array && audioChunk.length > 0) {
                             window.recordedMicrophoneChunk = true;
                         }
