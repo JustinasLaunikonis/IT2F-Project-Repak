@@ -35,6 +35,8 @@ const listMicrophonesButton = document.getElementById(
     "list-microphones-button",
 );
 
+const microphonePreferenceKey = "preferredMicrophoneId"; //store mic preference in the browser
+
 let harmUrl = null;
 let callerUrl = null;
 let recordingSessionActive = false; //prevents second recording session from being started
@@ -424,6 +426,20 @@ stopButton.addEventListener("click", async function () {
         activityMessage.textContent = error.message;
     }
 });
+
+//save the microphone selected by the user
+function saveSelectedMicrophone() {
+    const selectedMicrophoneId = microphoneSelect.value;
+
+    //empty value means no microphone is selected
+    if (selectedMicrophoneId === "") {
+        localStorage.removeItem(microphonePreferenceKey);
+        return;
+    }
+
+    //save microphone id in the browser
+    localStorage.setItem(microphonePreferenceKey, selectedMicrophoneId);
+}
 
 //show names of all available microphones
 async function listMicrophones() {
