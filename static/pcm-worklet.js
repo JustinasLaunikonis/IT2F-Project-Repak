@@ -96,7 +96,7 @@ class PcmRecorder extends AudioWorkletProcessor {
                 this.addSample(input[sampleIndex]);
                 this.frames++;
 
-                if (this.frames >= sampleRate * 30 * 60) {
+                if (this.frames >= sampleRate * 120 * 60) {
                     this.finish();
                     return false;
                 }
