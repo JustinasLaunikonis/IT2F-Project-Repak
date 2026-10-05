@@ -148,18 +148,46 @@ function checkSupport(includeCaller) {
     }
 }
 
+//turn getUserMedia/getDisplayMedia exceptions into messages the user can act on
 function captureError(error, source) {
+    if (source === "Microphone") {
+        if (error.name === "NotAllowedError" || error.name === "SecurityError") {
+            return new Error(
+                "Microphone access was denied. Allow microphone access in the browser and press Start again.",
+            );
+        }
+        if (error.name === "NotFoundError") {
+            return new Error(
+                "No microphone was found. Connect a microphone and press Start again.",
+            );
+        }
+        if (error.name === "OverconstrainedError") {
+            return new Error(
+                "Selected microphone is no longer available. List the microphones and choose another one.",
+            );
+        }
+        if (error.name === "NotReadableError" || error.name === "AbortError") {
+            return new Error(
+                "The microphone could not be started. Close other programs using it and press Start again.",
+            );
+        }
+        return error;
+    }
+
     if (error.name === "NotAllowedError") {
         return new Error(
-            source + " permission was denied or the request was cancelled.",
+            "Sharing the caller audio was denied or cancelled. Press Start again and choose a source to share.",
         );
     }
     if (error.name === "NotFoundError") {
-        return new Error("No " + source.toLowerCase() + " source was found.");
+        return new Error(
+            "No caller audio source was found. Press Start again and choose a source to share.",
+        );
     }
-
-    if (error.name === "OverconstrainedError") {
-        return new Error("Selected microphone is no longer available.");
+    if (error.name === "NotReadableError" || error.name === "AbortError") {
+        return new Error(
+            "The caller audio could not be captured. Press Start again and choose another source.",
+        );
     }
     return error;
 }
