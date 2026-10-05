@@ -6,6 +6,7 @@ const activityStatus = document.getElementById("activity-status");
 const activityMessage = document.getElementById("activity-message");
 const connectionStatus = document.getElementById("connection-status");
 const transcript = document.getElementById("transcript");
+const transcriptionInfo = document.getElementById("transcription-info");
 
 const startButton = document.getElementById("start-button");
 const stopButton = document.getElementById("stop-button");
@@ -220,7 +221,29 @@ async function transcribeRecording(files) {
     return result;
 }
 
+function showTranscriptionInfo(info) {
+    const lines = [];
+
+    for (const [speaker, details] of Object.entries(info)) {
+        const deviceLabel =
+            details.device === "cuda" ? "GPU (CUDA)" : "CPU";
+
+        lines.push(
+            `${speaker}: ${deviceLabel}, model ${details.model}`,
+        );
+    }
+
+    transcriptionInfo.textContent = lines.join(" | ");
+    transcriptionInfo.hidden = false;
+}
+
+function clearTranscriptionInfo() {
+    transcriptionInfo.textContent = "";
+    transcriptionInfo.hidden = true;
+}
+
 function handleUnexpectedStop(error, files) {
+    clearTranscriptionInfo();
     recordingSessionActive = false;
     stopRequested = false;
 
@@ -321,6 +344,7 @@ startButton.addEventListener("click", async function () {
     recordingSessionActive = true;
     stopRequested = false;
     clearRecordingReview();
+    clearTranscriptionInfo();
 
     startButton.disabled = true;
     stopButton.disabled = true;
@@ -386,6 +410,7 @@ stopButton.addEventListener("click", async function () {
         const transcriptionResult = await transcribeRecording(files); // upload both recordings and receive4 the combined transcript
 
         transcript.value = transcriptionResult.text;
+        showTranscriptionInfo(transcriptionResult.transcription_info);
 
         callDetails["[transcriptie]"] = transcriptionResult.text;
 
@@ -407,6 +432,7 @@ stopButton.addEventListener("click", async function () {
             "Microphone recording transcribed. Review the audio and transcript.";
     } catch (error) {
         //reset the interface if recording cant be stopped
+        clearTranscriptionInfo();
         recordingSessionActive = false;
         stopRequested = false;
 

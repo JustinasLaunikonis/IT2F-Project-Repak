@@ -61,7 +61,7 @@ def save_uploaded_wav(uploaded_file, destination):
             saved_audio,
         )
 
-    if destination.stat().st_size == 0: #dont accept empty recordingsd
+    if destination.stat().st_size == 0: #dont accept empty recordings
         raise HTTPException(
             status_code=400,
             detail="An uploaded WAV file is empty.",
@@ -73,7 +73,7 @@ def transcribe_uploaded_wav(
     harm: UploadFile = File(...),
     caller: UploadFile | None = File(None),
 ):
-    #files inside this folder arre removed automatically afterwards
+    #files inside this folder are removed automatically afterwards
     with TemporaryDirectory() as temporary_directory:
         temporary_path = Path(temporary_directory)
 
@@ -85,9 +85,8 @@ def transcribe_uploaded_wav(
         )
 
         #transcribe harm's mic recording
-        harm_segments = transcribe_audio_segments(
-            str(harm_path)
-        )
+        harm_result = transcribe_audio_segments(str(harm_path))
+        harm_segments = harm_result["segments"]
 
         caller_segments = []
 
@@ -100,14 +99,25 @@ def transcribe_uploaded_wav(
                 caller_path
             )
 
-            caller_segments = transcribe_audio_segments(
-                str(caller_path)
-            )
+            caller_result = transcribe_audio_segments(str(caller_path))
+            caller_segments = caller_result["segments"]
 
         #label speakers and put all segments in spoken order
         transcript_result = merge_and_format_transcript(
             harm_segments,
             caller_segments
         )
+        transcript_result["transcription_info"] = {
+            "Harm": {
+                "model": harm_result["model"],
+                "device": harm_result["device"],
+            }
+        }
+
+        if caller is not None:
+            transcript_result["transcription_info"]["Caller"] = {
+                "model": caller_result["model"],
+                "device": caller_result["device"],
+            }
 
         return transcript_result
