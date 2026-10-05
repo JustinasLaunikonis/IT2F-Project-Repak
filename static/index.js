@@ -441,6 +441,33 @@ function saveSelectedMicrophone() {
     localStorage.setItem(microphonePreferenceKey, selectedMicrophoneId);
 }
 
+//restore saved microphone if its still connected
+function restoreSavedMicrophone() {
+    const savedMicrophoneId = localStorage.getItem(microphonePreferenceKey);
+
+    //there is no preference to restore
+    if (savedMicrophoneId === null) {
+        return;
+    }
+
+    let savedMicrophoneFound = false;
+
+    //check every option in the microphone dropdown
+    for (const microphoneOption of microphoneSelect.options) {
+        if (microphoneOption.value === savedMicrophoneId) {
+            savedMicrophoneFound = true;
+        }
+    }
+
+    if (savedMicrophoneFound === true) {
+        //select microphone saved by the user
+        microphoneSelect.value = savedMicrophoneId;
+    } else {
+        //remove saved value if mic is unavailable
+        localStorage.removeItem(microphonePreferenceKey);
+    }
+}
+
 //show names of all available microphones
 async function listMicrophones() {
     microphoneSelect.innerHTML =
@@ -494,6 +521,9 @@ async function listMicrophones() {
             }
         }
 
+        //restore saved selection after creating all options
+        restoreSavedMicrophone();
+
         if (microphoneCount === 0) {
             microphoneMessage.textContent = "No microphone inputs were found";
         } else {
@@ -529,3 +559,13 @@ async function listMicrophones() {
 listMicrophonesButton.addEventListener("click", function () {
     listMicrophones();
 });
+
+//save preference whenever selection changes
+microphoneSelect.addEventListener("change", function () {
+    saveSelectedMicrophone();
+});
+
+//if preference exists, restore it when the page is reopened
+if (localStorage.getItem(microphonePreferenceKey) !== null) {
+    listMicrophones();
+}
