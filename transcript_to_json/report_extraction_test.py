@@ -1,5 +1,5 @@
-from report_extractor import extract_call_fields_from_transcript
-from report_schema import to_report_fields
+from transcript_to_json.report_extractor import extract_call_fields_from_transcript
+from transcript_to_json.report_schema import to_report_fields
 
 
 transcript = """
@@ -10,10 +10,15 @@ transcript = """
 [00:00:16] Caller: We restarted it twice, but the problem returned.
 """
 
-extracted = extract_call_fields_from_transcript(transcript)
+def main():
+    extracted = extract_call_fields_from_transcript(transcript)
 
-print("Validated model output:")
-print(extracted.model_dump_json(indent=2))
+    print("Validated model output:")
+    print(extracted.model_dump_json(indent=2))
 
-print("\nValues for the Word template:")
-print(to_report_fields(extracted))
+    print("\nValues for the Word template:")
+    print(to_report_fields(extracted))
+
+
+if __name__ == "__main__":
+    main()

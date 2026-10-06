@@ -24,7 +24,7 @@ const harmPreview = document.getElementById("harm-preview");
 const callerPreview = document.getElementById("caller-preview");
 const harmDownload = document.getElementById("harm-download");
 const callerDownload = document.getElementById("caller-download");
-const missingDetails = document.getElementById("missing-details");
+const missingDetails = document.getElementById("missing-details-form");
 const missingDetailsSubmitButton = document.getElementById(
     "missing-details-submit-button",
 );
@@ -92,35 +92,40 @@ const jsonStringTemplate = `{
 
 const callDetails = JSON.parse(jsonStringTemplate);
 
-let fieldNumber = 1;
+function showMissingDetails() {
+    missingDetails.replaceChildren();
+    let fieldNumber = 1;
 
-for (let [key, value] of Object.entries(callDetails)) {
-    if (value !== null && String(value).trim() !== "") {
-        continue;
+    for (let [key, value] of Object.entries(callDetails)) {
+        if (value != null && String(value).trim() !== "") {
+            continue;
+        }
+
+        let row = document.createElement("div");
+        let label = document.createElement("label");
+        let input = document.createElement("input");
+
+        row.className = "missing-details-row";
+
+        input.type = "text";
+        input.name = key;
+        input.id = "missing-field-" + fieldNumber;
+        fieldNumber++;
+
+        label.htmlFor = input.id;
+        label.textContent = key.slice(1, -1) + ":"; //remove the surrounding square brackets
+
+        // Save manual values without rebuilding the form while the user types.
+        input.addEventListener("input", function () {
+            callDetails[key] = input.value;
+        });
+
+        row.append(label, input);
+        missingDetails.appendChild(row);
     }
-
-    let row = document.createElement("div");
-    let label = document.createElement("label");
-    let input = document.createElement("input");
-
-    row.className = "missing-details-row";
-
-    input.type = "text";
-    input.name = key;
-    input.id = "missing-field-" + fieldNumber;
-    fieldNumber++;
-
-    label.htmlFor = input.id;
-    label.textContent = key.slice(1, -1) + ":"; //remove the surrounding square brackets
-
-    // Keep the values updated as the user types, updated for each value.
-    input.addEventListener("input", function () {
-        callDetails[key] = input.value;
-    });
-
-    row.append(label, input);
-    missingDetails.appendChild(row);
 }
+
+showMissingDetails();
 
 async function submitCallData() {
     missingDetailsSubmitButton.disabled = true;
@@ -388,6 +393,7 @@ stopButton.addEventListener("click", async function () {
         transcript.value = transcriptionResult.text;
 
         callDetails["[transcriptie]"] = transcriptionResult.text;
+        showMissingDetails();
 
         recordingSessionActive = false;
         stopRequested = false;

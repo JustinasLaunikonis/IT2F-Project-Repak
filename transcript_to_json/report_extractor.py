@@ -1,10 +1,9 @@
 import json
 import os
 
-import fastapi
 import httpx
 
-from report_schema import ExtractedCallFields
+from transcript_to_json.report_schema import ExtractedCallFields
 
 SYSTEM_PROMPT = """
 You extract factual information from a service-call transcript.
@@ -20,7 +19,7 @@ Rules:
 - Return JSON matching the supplied schema.
 """
 
-# -> is typecast function return to ExtractedCallFields class
+# The return annotation documents the type; Pydantic below validates the result.
 def extract_call_fields_from_transcript(transcript : str) -> ExtractedCallFields:
     if not transcript.strip():
         raise ValueError("Transcript is empty")
@@ -32,7 +31,7 @@ def extract_call_fields_from_transcript(transcript : str) -> ExtractedCallFields
     llm_config = {
         "model" : llm_model_name,
         "stream" : False,
-        "think" : True,
+        "think" : False,
         "keep_alive" : 0,
         "format" : schema,
         "options": {
@@ -68,8 +67,21 @@ def extract_call_fields_from_transcript(transcript : str) -> ExtractedCallFields
         response.raise_for_status()
         body = response.json()
 
+        if not isinstance(body, dict):
+            raise ValueError("Unexpected model response.")
+
+        if body.get("done") is not True:
+            raise ValueError("The model response was incomplete.")
+
+        if body.get("done_reason") == "length":
+            raise ValueError("The model reached its output limit.")
+
         message = body.get("message")
+        if not isinstance(message, dict):
+            raise ValueError("The model response has no message.")
+
         content = message.get("content")
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("The model response has no JSON content.")
 
         return ExtractedCallFields.model_validate_json(content)
-

@@ -1,13 +1,17 @@
+import logging
 import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import httpx
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from docx_generator.docx_generator import convert_json_to_docx
+from transcript_to_json.report_extractor import extract_call_fields_from_transcript
+from transcript_to_json.report_schema import to_report_fields
 from whisper_demo import transcribe_audio_segments
 from speaker_transcript import merge_and_format_transcript
 
@@ -15,6 +19,7 @@ from speaker_transcript import merge_and_format_transcript
 project_directory = Path(__file__).resolve().parent
 static_directory = project_directory / "static"
 home_page = static_directory / "index.html"
+logger = logging.getLogger(__name__)
 
 # Disable the generated API documentation so the page needs no external assets.
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
@@ -111,8 +116,31 @@ def transcribe_uploaded_wav(
         )
 
         return transcript_result
-#
-#
-# @app.post("extract-report")
-# def convert_transcription_to_json_input():
-#
+
+class ExtractReportRequest(BaseModel):
+    transcript: str = Field(min_length=1)
+
+@app.post("/extract-report")
+def convert_transcription_to_json_input(request: ExtractReportRequest):
+    if not request.transcript.strip():
+        raise HTTPException(status_code=422, detail="The transcript must not be blank.")
+
+    try:
+        extracted_call_fields = extract_call_fields_from_transcript(request.transcript)
+        report_fields = to_report_fields(extracted_call_fields)
+
+    except:
+        return {
+            "fields": {},
+            "mode": "manual",
+            "warning": (
+                "Automatic filling did not produce a valid result or work properly for this run. "
+                "Please complete the details manually."
+            ),
+        }
+
+    return {
+        "fields": report_fields,
+        "mode": "llm",
+        "warning": None,
+    }
