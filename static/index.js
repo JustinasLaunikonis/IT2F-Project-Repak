@@ -308,7 +308,7 @@ function showState(state) {
         activityMessage.textContent = "Recording your microphone";
         if (includeCaller.checked) {
             activityMessage.textContent =
-                "Recording your microphone and caller audio";
+                "Recording your microphone and Windows system audio";
         }
     } else if (state === "processing") {
         activityStatus.textContent = "Activity: Processing";
@@ -371,7 +371,7 @@ startButton.addEventListener("click", async function () {
     activityMessage.textContent = "Please allow microphone access";
     if (includeCaller.checked) {
         activityMessage.textContent =
-            "Please choose a source to share with audio and allow microphone access";
+            "Choose Entire Screen, enable Share system audio, and allow microphone access";
     }
 
     try {

@@ -223,8 +223,8 @@ test("missing shared audio stops acquired tracks and permits another attempt", a
     });
 
     expect(result.errors).toEqual([
-        "The selected screen or tab did not share audio. Enable audio sharing and choose the softphone output.",
-        "The selected screen or tab did not share audio. Enable audio sharing and choose the softphone output."
+        "The selected source did not provide audio. In Chrome, choose Entire Screen and enable Share system audio, then try again.",
+        "The selected source did not provide audio. In Chrome, choose Entire Screen and enable Share system audio, then try again."
     ]);
     expect(result.stoppedTracks).toBe(2);
 });

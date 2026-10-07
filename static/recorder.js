@@ -239,7 +239,7 @@ export async function startWavRecording(
             recording.streams.push(displayStream);
             if (displayStream.getAudioTracks().length === 0) {
                 throw new Error(
-                    "The selected screen or tab did not share audio. Enable audio sharing and choose the softphone output.",
+                    "The selected source did not provide audio. In Chrome, choose Entire Screen and enable Share system audio, then try again.",
                 );
             }
         }
