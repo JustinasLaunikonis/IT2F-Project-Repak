@@ -1,0 +1,9 @@
+{
+  "text": "[Harm] test call: the packing machine reports alarm TEST-43. Please review the recording before exporting this report.",
+  "transcription_info": {
+    "Harm": {
+      "model": "small",
+      "device": "cpu"
+    }
+  }
+}

@@ -97,14 +97,19 @@ def transcribe_audio_segments(audio_path):
                 "end": segment.end,
                 "text": segment.text.strip(),
             })
-        return transcription_segments
+        return {
+            "segments": transcription_segments,
+            "model": model_name,
+            "device": device,
+        }
     finally:
         # Finish with Whisper before loading the report LLM into the same GPU.
         model.model.unload_model()
 
 
 def transcribe_audio(audio_path):
-    segments = transcribe_audio_segments(audio_path) #get the timestamped transcription segments
+    result = transcribe_audio_segments(audio_path)
+    segments = result["segments"]
 
     text_parts = []
 

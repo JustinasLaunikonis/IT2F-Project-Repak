@@ -6,6 +6,7 @@ const activityStatus = document.getElementById("activity-status");
 const activityMessage = document.getElementById("activity-message");
 const connectionStatus = document.getElementById("connection-status");
 const transcript = document.getElementById("transcript");
+const transcriptionInfo = document.getElementById("transcription-info");
 
 const startButton = document.getElementById("start-button");
 const stopButton = document.getElementById("stop-button");
@@ -35,6 +36,8 @@ const microphoneMessage = document.getElementById("microphone-message");
 const listMicrophonesButton = document.getElementById(
     "list-microphones-button",
 );
+
+const microphonePreferenceKey = "preferredMicrophoneId"; //store mic preference in the browser
 
 let harmUrl = null;
 let callerUrl = null;
@@ -272,22 +275,79 @@ async function transcribeRecording(files) {
         formData.append("caller", files.caller, "caller.wav");
     }
 
-    const response = await fetch("/transcribe", {
-        method: "POST",
-        body: formData,
-    });
+    let response;
+
+    try {
+        response = await fetch("/transcribe", {
+            method: "POST",
+            body: formData,
+        });
+    } catch {
+        //fetch only throws when the request never reached the server
+        throw new Error(
+            "The recording could not be uploaded. Check that the server is running and press Start again.",
+        );
+    }
 
     if (!response.ok) {
-        throw new Error(
-            "Transcription failed. Check the server and try again.",
-        );
+        throw new Error(await readServerError(response));
     }
 
     const result = await response.json();
     return result;
 }
 
-function handleUnexpectedStop(error, files) {
+function showTranscriptionInfo(info) {
+    const channels = Object.entries(info);
+    const showChannelNames = channels.length > 1;
+    const lines = [];
+
+    for (const [speaker, details] of channels) {
+        const deviceLabel =
+            details.device === "cuda" ? "GPU (CUDA)" : "CPU";
+        const modelLabel =
+            details.model.charAt(0).toUpperCase() + details.model.slice(1);
+        const channelLabel = showChannelNames ? `${speaker}: ` : "";
+
+        lines.push(`${channelLabel}${deviceLabel}, Size: ${modelLabel}`);
+    }
+
+    transcriptionInfo.textContent =
+        `Transcription Model Info: ${lines.join(" | ")}`;
+    transcriptionInfo.hidden = false;
+}
+
+function clearTranscriptionInfo() {
+    transcriptionInfo.textContent = "";
+    transcriptionInfo.hidden = true;
+}
+
+//build a readable message from a failed server response
+async function readServerError(response) {
+    let detail = "";
+
+    try {
+        const body = await response.json();
+        if (typeof body.detail === "string") {
+            detail = body.detail; //FastAPI puts the HTTPException message in "detail"
+        }
+    } catch {
+        //the response had no JSON body, keep the generic message
+    }
+
+    let message =
+        "The server could not transcribe the recording (error " +
+        response.status +
+        ").";
+    if (detail !== "") {
+        message = message + " " + detail;
+    }
+
+    return message;
+}
+
+//make Start available again after a recording session ends
+function resetRecordingControls() {
     recordingSessionActive = false;
     stopRequested = false;
     missingDetailsSubmitButton.disabled = false;
@@ -301,10 +361,19 @@ function handleUnexpectedStop(error, files) {
 
     microphoneSelect.disabled = false;
     listMicrophonesButton.disabled = false;
+}
+
+function showError(message) {
+    showState("error");
+    activityMessage.textContent = message;
+}
+
+function handleUnexpectedStop(error, files) {
+    clearTranscriptionInfo();
+    resetRecordingControls();
 
     if (error !== null) {
-        showState("error");
-        activityMessage.textContent = error.message;
+        showError(error.message);
     } else {
         showRecordingReview(files);
         showState("idle");
@@ -378,11 +447,7 @@ startButton.addEventListener("click", async function () {
     const selectedMicrophoneId = microphoneSelect.value; //get id of the microphone chosen by user
 
     if (selectedMicrophoneId === "") {
-        showState("error");
-
-        activityMessage.textContent =
-            "List the microphones and choose one before the recording";
-
+        showError("List the microphones and choose one before the recording");
         return;
     }
 
@@ -390,6 +455,7 @@ startButton.addEventListener("click", async function () {
     stopRequested = false;
     missingDetailsSubmitButton.disabled = true;
     clearRecordingReview();
+    clearTranscriptionInfo();
 
     startButton.disabled = true;
     stopButton.disabled = true;
@@ -428,21 +494,8 @@ startButton.addEventListener("click", async function () {
 
         showState("recording");
     } catch (error) {
-        recordingSessionActive = false;
-        missingDetailsSubmitButton.disabled = false;
-
-        connectionStatus.textContent = "Connection: Not connected";
-
-        startButton.disabled = false;
-        stopButton.disabled = true;
-
-        includeCaller.disabled = false;
-
-        microphoneSelect.disabled = false;
-        listMicrophonesButton.disabled = false;
-
-        showState("error");
-        activityMessage.textContent = error.message;
+        resetRecordingControls();
+        showError(error.message);
     }
 });
 
@@ -467,6 +520,7 @@ stopButton.addEventListener("click", async function () {
         const transcriptionResult = await transcribeRecording(files); // upload both recordings and receive4 the combined transcript
 
         transcript.value = transcriptionResult.text;
+        showTranscriptionInfo(transcriptionResult.transcription_info);
 
         callDetails["[transcriptie]"] = transcriptionResult.text;
         const warning = transcriptionResult.text.trim()
@@ -474,43 +528,59 @@ stopButton.addEventListener("click", async function () {
             : "No speech was transcribed. Complete the report manually.";
         showMissingDetails();
 
-        recordingSessionActive = false;
-        stopRequested = false;
-
-        connectionStatus.textContent = "Connection: Not connected";
-
-        startButton.disabled = false;
-        stopButton.disabled = true;
-
-        includeCaller.disabled = false;
-
-        microphoneSelect.disabled = false;
-        listMicrophonesButton.disabled = false;
+        resetRecordingControls();
 
         showState("completed");
         activityMessage.textContent =
             warning ?? "Call processed. Fill in any remaining details, then click Generate.";
     } catch (error) {
-        //reset the interface if recording cant be stopped
-        recordingSessionActive = false;
-        stopRequested = false;
-
-        connectionStatus.textContent = "Connection: Not connected";
-
-        startButton.disabled = false;
-        stopButton.disabled = true;
-
-        includeCaller.disabled = false;
-
-        microphoneSelect.disabled = false;
-        listMicrophonesButton.disabled = false;
-
-        showState("error");
-        activityMessage.textContent = error.message;
-    } finally {
-        missingDetailsSubmitButton.disabled = false;
+        //reset the interface if recording cant be stopped or transcribed
+        clearTranscriptionInfo();
+        resetRecordingControls();
+        showError(error.message);
     }
 });
+
+//save the microphone selected by the user
+function saveSelectedMicrophone() {
+    const selectedMicrophoneId = microphoneSelect.value;
+
+    //empty value means no microphone is selected
+    if (selectedMicrophoneId === "") {
+        localStorage.removeItem(microphonePreferenceKey);
+        return;
+    }
+
+    //save microphone id in the browser
+    localStorage.setItem(microphonePreferenceKey, selectedMicrophoneId);
+}
+
+//restore saved microphone if its still connected
+function restoreSavedMicrophone() {
+    const savedMicrophoneId = localStorage.getItem(microphonePreferenceKey);
+
+    //there is no preference to restore
+    if (savedMicrophoneId === null) {
+        return;
+    }
+
+    let savedMicrophoneFound = false;
+
+    //check every option in the microphone dropdown
+    for (const microphoneOption of microphoneSelect.options) {
+        if (microphoneOption.value === savedMicrophoneId) {
+            savedMicrophoneFound = true;
+        }
+    }
+
+    if (savedMicrophoneFound === true) {
+        //select microphone saved by the user
+        microphoneSelect.value = savedMicrophoneId;
+    } else {
+        //remove saved value if mic is unavailable
+        localStorage.removeItem(microphonePreferenceKey);
+    }
+}
 
 //show names of all available microphones
 async function listMicrophones() {
@@ -565,6 +635,9 @@ async function listMicrophones() {
             }
         }
 
+        //restore saved selection after creating all options
+        restoreSavedMicrophone();
+
         if (microphoneCount === 0) {
             microphoneMessage.textContent = "No microphone inputs were found";
         } else {
@@ -600,3 +673,13 @@ async function listMicrophones() {
 listMicrophonesButton.addEventListener("click", function () {
     listMicrophones();
 });
+
+//save preference whenever selection changes
+microphoneSelect.addEventListener("change", function () {
+    saveSelectedMicrophone();
+});
+
+//if preference exists, restore it when the page is reopened
+if (localStorage.getItem(microphonePreferenceKey) !== null) {
+    listMicrophones();
+}

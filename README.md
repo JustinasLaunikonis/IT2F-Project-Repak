@@ -113,7 +113,7 @@ A successful request returns JSON such as `{"text":"Hello, this is a test."}`.
 The file is processed locally. Browser recording and upload integration are
 still being developed.
 
-## Run the UI status test
+## Run the browser tests
 
 First run `install.bat`. Install Node.js and npm, then run these commands in PowerShell from the project folder:
 
@@ -123,7 +123,46 @@ npx playwright install chromium
 npm run test:ui
 ```
 
-The test starts a local server automatically and checks the visible activity status and error message in Chromium. It tests the status preview buttons and a simulated recording permission failure, without recording audio.
+The tests start a local server automatically and check activity status,
+microphone selection, recording, and export in Chromium.
+
+The record-to-export test uses Chromium's fake microphone with
+`--use-fake-device-for-media-stream` and `--use-fake-ui-for-media-stream`,
+and grants microphone permission in its test context. It records through
+browser audio APIs, replaces only
+the `/transcribe` response with synthetic fixture JSON, checks the completed
+state and transcript, and downloads a DOCX from the real `/export` endpoint.
+No physical microphone, Whisper model download, or GPU is needed for this
+test. It checks browser integration, not Whisper transcription accuracy.
+CI runs it automatically with the rest of the browser tests.
+
+To run only this flow:
+
+```powershell
+npm run test:ui -- tests/ui/record-to-export.spec.js
+```
+
+## Scripted test calls
+
+The `test_calls` directory contains five short synthetic English service calls for demonstrations, transcription accuracy checks, and automated testing.
+
+All conversations are fictional. They contain no real customer audio or customer information.
+
+| Call | Machine problem |
+| --- | --- |
+| Call 01 | Conveyor belt moves backwards |
+| Call 02 | Label printer keeps printing the word banana |
+| Call 03 | Robot arm waves instead of picking up boxes |
+| Call 04 | Packaging machine wraps empty space |
+| Call 05 | Coffee machine makes coffee without a cup |
+
+Each call directory contains:
+
+- `harm.wav`: the Operator's microphone recording.
+- `caller.wav`: the Technician's caller-audio recording.
+- `transcript.txt`: the exact scripted conversation for both speakers.
+
+The recordings are mono, 16-bit PCM WAV files at 16 kHz.
 
 ## Contributing through pull requests
 
