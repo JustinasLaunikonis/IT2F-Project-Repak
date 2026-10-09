@@ -31,7 +31,10 @@ test.beforeEach(async function ({ page }) {
     });
     await page.route("**/transcribe", route => route.fulfill({
         contentType: "application/json",
-        body: JSON.stringify({ text: transcript }),
+        body: JSON.stringify({
+            text: transcript,
+            transcription_info: { Harm: { model: "small", device: "cpu" } },
+        }),
     }));
 });
 

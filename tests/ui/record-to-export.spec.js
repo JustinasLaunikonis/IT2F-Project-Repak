@@ -33,6 +33,15 @@ test("record a fake microphone, review its transcript, and export a Word report"
         });
     });
 
+    // Skip the report LLM
+    await page.route("**/extract-report", async function answerExtractionRequest(route) {
+        await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ fields: {} })
+        });
+    });
+
     await page.addInitScript(observeRealMicrophoneChunks);
 
     // 2. Choose the fake microphone
@@ -67,7 +76,7 @@ test("record a fake microphone, review its transcript, and export a Word report"
     expect(transcriptionHeaders["content-type"]).toContain("multipart/form-data");
     await expect(page.locator("#activity-status")).toHaveText("Activity: Completed");
     await expect(page.locator("#activity-message")).toHaveText(
-        "Microphone recording transcribed. Review the audio and transcript."
+        "Call processed. Fill in any remaining details, then click Generate."
     );
     await expect(page.locator("#transcript")).toHaveValue(expectedTranscript);
 
