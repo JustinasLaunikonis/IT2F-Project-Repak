@@ -30,6 +30,7 @@ const missingDetailsSubmitButton = document.getElementById(
 );
 
 const microphoneSelect = document.getElementById("microphone-select");
+const reportModelSelect = document.getElementById("report-model-select");
 const microphoneMessage = document.getElementById("microphone-message");
 const listMicrophonesButton = document.getElementById(
     "list-microphones-button",
@@ -39,6 +40,29 @@ let harmUrl = null;
 let callerUrl = null;
 let recordingSessionActive = false; //prevents second recording session from being started
 let stopRequested = false; //prevents stop from being requested more than once
+let recordingStartedAt = null;
+
+async function loadReportModels() {
+    try {
+        const response = await fetch("/report-models");
+        if (!response.ok) throw new Error("Models could not be loaded.");
+        const result = await response.json();
+        for (const model of result.models) {
+            const option = document.createElement("option");
+            option.value = model.name;
+            option.textContent = `${model.name} — ${model.memory}${model.installed ? "" : " (not installed)"}`;
+            option.disabled = !model.installed;
+            reportModelSelect.appendChild(option);
+        }
+        reportModelSelect.value = result.default;
+    } catch (error) {
+        reportModelSelect.value = "none";
+    } finally {
+        reportModelSelect.disabled = false;
+    }
+}
+
+loadReportModels();
 
 const jsonStringTemplate = `{
     "[machinenummer]": "",
@@ -127,8 +151,45 @@ function showMissingDetails() {
 
 showMissingDetails();
 
+function fillCallDate(date) {
+    const day = date.toLocaleDateString("en-GB").replaceAll("/", "-");
+    const time = date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    callDetails["[datum]"] = day;
+    callDetails["[datum / tijd]"] = `${day} / ${time}`;
+}
+
+async function fillReportFromTranscript(text) {
+    reportModelSelect.disabled = true;
+    try {
+        const response = await fetch("/extract-report", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ transcript: text, model: reportModelSelect.value }),
+        });
+        if (!response.ok) {
+            throw new Error("Automatic filling failed. Complete the remaining details manually.");
+        }
+        const result = await response.json();
+        for (const [key, value] of Object.entries(result.fields)) {
+            // Keep anything Harm has already entered for this call.
+            if (Object.hasOwn(callDetails, key) && typeof value === "string" && !callDetails[key].trim()) {
+                callDetails[key] = value;
+            }
+        }
+        return result.warning;
+    } catch (error) {
+        return "Automatic filling is unavailable. Complete the remaining details manually.";
+    } finally {
+        reportModelSelect.disabled = false;
+    }
+}
+
 async function submitCallData() {
+    if (recordingSessionActive) {
+        return;
+    }
     missingDetailsSubmitButton.disabled = true;
+    startButton.disabled = true;
 
     try {
         const docxGeneratorResponse = await fetch("/export", {
@@ -162,6 +223,7 @@ async function submitCallData() {
         alert(error.message);
     } finally {
         missingDetailsSubmitButton.disabled = false;
+        startButton.disabled = false;
     }
 }
 
@@ -228,6 +290,7 @@ async function transcribeRecording(files) {
 function handleUnexpectedStop(error, files) {
     recordingSessionActive = false;
     stopRequested = false;
+    missingDetailsSubmitButton.disabled = false;
 
     connectionStatus.textContent = "Connection: Not connected";
 
@@ -325,6 +388,7 @@ startButton.addEventListener("click", async function () {
 
     recordingSessionActive = true;
     stopRequested = false;
+    missingDetailsSubmitButton.disabled = true;
     clearRecordingReview();
 
     startButton.disabled = true;
@@ -349,12 +413,23 @@ startButton.addEventListener("click", async function () {
             selectedMicrophoneId,
         );
 
+        if (recordingStartedAt !== null) {
+            // Each new recording gets its own report, not values from the previous call.
+            Object.assign(callDetails, JSON.parse(jsonStringTemplate));
+            transcript.value = "";
+        }
+        recordingStartedAt = new Date();
+        fillCallDate(recordingStartedAt);
+        showMissingDetails();
+        missingDetailsSubmitButton.disabled = true;
+
         connectionStatus.textContent = "Connection: Connected";
         stopButton.disabled = false;
 
         showState("recording");
     } catch (error) {
         recordingSessionActive = false;
+        missingDetailsSubmitButton.disabled = false;
 
         connectionStatus.textContent = "Connection: Not connected";
 
@@ -379,6 +454,7 @@ stopButton.addEventListener("click", async function () {
 
     stopRequested = true;
     stopButton.disabled = true;
+    missingDetailsSubmitButton.disabled = true;
 
     showState("processing");
 
@@ -393,6 +469,9 @@ stopButton.addEventListener("click", async function () {
         transcript.value = transcriptionResult.text;
 
         callDetails["[transcriptie]"] = transcriptionResult.text;
+        const warning = transcriptionResult.text.trim()
+            ? await fillReportFromTranscript(transcriptionResult.text)
+            : "No speech was transcribed. Complete the report manually.";
         showMissingDetails();
 
         recordingSessionActive = false;
@@ -410,7 +489,7 @@ stopButton.addEventListener("click", async function () {
 
         showState("completed");
         activityMessage.textContent =
-            "Microphone recording transcribed. Review the audio and transcript.";
+            warning ?? "Call processed. Fill in any remaining details, then click Generate.";
     } catch (error) {
         //reset the interface if recording cant be stopped
         recordingSessionActive = false;
@@ -428,6 +507,8 @@ stopButton.addEventListener("click", async function () {
 
         showState("error");
         activityMessage.textContent = error.message;
+    } finally {
+        missingDetailsSubmitButton.disabled = false;
     }
 });
 

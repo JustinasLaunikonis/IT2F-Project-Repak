@@ -1,5 +1,12 @@
 const { test, expect } = require("@playwright/test");
 
+test.beforeEach(async function ({ page }) {
+    await page.route("**/extract-report", route => route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ fields: {}, warning: null })
+    }));
+});
+
 test("stopping capture closes every track and shows the transcript", async function ({ page }) {
     await page.route("**/transcribe", async function (route) {
         await route.fulfill({
@@ -112,7 +119,7 @@ test("stopping capture closes every track and shows the transcript", async funct
 
     await expect(page.locator("#activity-status")).toHaveText("Activity: Completed");
     await expect(page.locator("#activity-message")).toHaveText(
-        "Microphone recording transcribed. Review the audio and transcript."
+        "Call processed. Fill in any remaining details, then click Generate."
     );
     await expect(page.locator("#transcript")).toHaveValue("Test caller transcript");
     await expect(page.locator("#harm-download")).toHaveAttribute("download", "harm.wav");

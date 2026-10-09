@@ -4,8 +4,14 @@
 
 1. Install [Python 3.10 or newer](https://www.python.org/downloads/windows/). During installation, select **Add python.exe to PATH**.
 2. Download this project and unzip it to a folder on this computer. Keep all project files together.
-3. With an internet connection, double-click `install.bat` in that folder. It creates a private Python environment, installs the required packages, and downloads the Whisper model. If CUDA is detected, it also downloads the smaller CPU model in case GPU loading fails. The first installation can take several minutes and requires space for the packages and models. Wait for **Installation completed successfully**.
-4. Double-click `run.bat`. Leave its window open. Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in a browser on the same computer. Press **Ctrl+C** in the window to stop the application.
+3. With an internet connection, double-click `install.bat` in that folder. It creates a private Python environment, installs the required packages, and downloads the Whisper model. If CUDA is detected, it also downloads the smaller CPU model in case GPU loading fails. The first installation can take several minutes and requires space for the packages and models. Wait for **Installation completed successfully**. 
+4. Install [Ollama](https://ollama.com/download) and leave it running.
+5. Open PowerShell in the project folder and download the report model:
+
+   ```powershell
+   ollama pull qwen3:4b
+   ```
+6. Double-click `run.bat`. Leave its window open. Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in a browser on the same computer. Press **Ctrl+C** in the window to stop the application.
 
 For later runs, use only `run.bat`. If installation stops with an error, read the message in its window and run `install.bat` again after fixing the problem. The model download needs internet during installation; audio processing is local. The current browser page is a local application preview. The full recording and transcription flow is still being developed.
 

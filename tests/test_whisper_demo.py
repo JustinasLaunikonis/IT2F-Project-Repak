@@ -69,6 +69,7 @@ def test_transcription_uses_local_model_and_prints_segments(
     class FakeModel:
         def __init__(self, model_name, device, compute_type, local_files_only):
             calls.append(("load", model_name, device, compute_type, local_files_only))
+            self.model = types.SimpleNamespace(unload_model=lambda: calls.append(("unload",)))
 
         def transcribe(self, audio_path, beam_size):
             calls.append(("transcribe", audio_path, beam_size))
@@ -96,6 +97,7 @@ def test_transcription_uses_local_model_and_prints_segments(
     assert calls == [
         ("load", model_name, device, compute_type, True),
         ("transcribe", "synthetic.wav", 5),
+        ("unload",),
     ]
     captured = capsys.readouterr()
     output = captured.out
@@ -122,6 +124,7 @@ def test_explicit_cpu_and_model_override(monkeypatch, capsys):
     class FakeModel:
         def __init__(self, model_name, device, compute_type, local_files_only):
             calls.append((model_name, device, compute_type, local_files_only))
+            self.model = types.SimpleNamespace(unload_model=lambda: calls.append("unload"))
 
         def transcribe(self, audio_path, beam_size):
             return [], types.SimpleNamespace(language="en", language_probability=1.0)
@@ -131,7 +134,7 @@ def test_explicit_cpu_and_model_override(monkeypatch, capsys):
 
     whisper_demo.transcribe_audio("synthetic.wav")
 
-    assert calls == [("base", "cpu", "int8", True)]
+    assert calls == [("base", "cpu", "int8", True), "unload"]
     assert "Using Whisper model: base; device: cpu" in capsys.readouterr().out
 
 
@@ -151,6 +154,7 @@ def test_cuda_load_failure_falls_back_to_small_cpu_model(monkeypatch, capsys):
             calls.append((model_name, device, compute_type, local_files_only))
             if device == "cuda":
                 raise RuntimeError("missing CUDA library")
+            self.model = types.SimpleNamespace(unload_model=lambda: calls.append("unload"))
 
         def transcribe(self, audio_path, beam_size):
             return [], types.SimpleNamespace(language="en", language_probability=1.0)
@@ -163,6 +167,7 @@ def test_cuda_load_failure_falls_back_to_small_cpu_model(monkeypatch, capsys):
     assert calls == [
         ("large-v3-turbo", "cuda", "float16", True),
         ("small", "cpu", "int8", True),
+        "unload",
     ]
     output = capsys.readouterr()
     assert "Warning: CUDA model failed to load" in output.err
