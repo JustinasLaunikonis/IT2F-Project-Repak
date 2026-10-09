@@ -68,6 +68,17 @@ def save_uploaded_wav(uploaded_file, destination):
         )
 
 
+def transcribe_saved_wav(audio_path, speaker):
+    #turn whisper failures into a readable error for the browser
+    try:
+        return transcribe_audio_segments(str(audio_path))
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Transcribing the {speaker} recording failed: {error}",
+        ) from error
+
+
 @app.post("/transcribe")
 def transcribe_uploaded_wav(
     harm: UploadFile = File(...),
@@ -85,7 +96,7 @@ def transcribe_uploaded_wav(
         )
 
         #transcribe harm's mic recording
-        harm_result = transcribe_audio_segments(str(harm_path))
+        harm_result = transcribe_saved_wav(harm_path, "microphone")
         harm_segments = harm_result["segments"]
 
         caller_segments = []
@@ -99,7 +110,7 @@ def transcribe_uploaded_wav(
                 caller_path
             )
 
-            caller_result = transcribe_audio_segments(str(caller_path))
+            caller_result = transcribe_saved_wav(caller_path, "caller")
             caller_segments = caller_result["segments"]
 
         #label speakers and put all segments in spoken order

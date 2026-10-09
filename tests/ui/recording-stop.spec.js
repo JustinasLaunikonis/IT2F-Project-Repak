@@ -128,7 +128,7 @@ test("stopping capture closes every track and shows the transcript", async funct
     );
     await expect(page.locator("#transcript")).toHaveValue("Test caller transcript");
     await expect(page.locator("#transcription-info")).toBeVisible();
-    await expect(page.locator("#transcription-info")).toHaveText("Harm: GPU (CUDA), model large-v3-turbo | Caller: CPU, model small");
+    await expect(page.locator("#transcription-info")).toHaveText("Transcription Model Info: Harm: GPU (CUDA), Size: Large-v3-turbo | Caller: CPU, Size: Small");
     await expect(page.locator("#harm-download")).toHaveAttribute("download", "harm.wav");
     await expect(page.locator("#caller-download")).toHaveAttribute("download", "caller.wav");
     await expect(page.locator("#harm-download")).toHaveAttribute("href", /^blob:/);

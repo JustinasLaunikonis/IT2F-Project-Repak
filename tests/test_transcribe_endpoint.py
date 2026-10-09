@@ -177,3 +177,31 @@ def test_empty_wav_is_rejected():
     assert response.json() == {
         "detail": "An uploaded WAV file is empty."
     }
+
+
+def test_transcription_failure_returns_readable_error(monkeypatch):
+    #simulate whisper crashing while transcribing
+    def failing_transcribe_segments(audio_path):
+        raise RuntimeError("model file is missing")
+
+    monkeypatch.setattr(
+        main,
+        "transcribe_audio_segments",
+        failing_transcribe_segments,
+    )
+
+    response = client.post(
+        "/transcribe",
+        files={
+            "harm": (
+                "harm.wav",
+                b"fake harm audio",
+                "audio/wav",
+            )
+        },
+    )
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "detail": "Transcribing the microphone recording failed: model file is missing"
+    }

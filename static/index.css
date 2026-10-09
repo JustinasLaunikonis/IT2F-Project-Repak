@@ -114,7 +114,7 @@ textarea {
     border: 1px solid #d7dde5;
     outline: none;
     border-radius: 0.75rem;
-    resize: none;
+    resize: vertical;
     overflow-y: auto;
     min-height: 200px;
 }

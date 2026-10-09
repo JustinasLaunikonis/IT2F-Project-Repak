@@ -118,7 +118,7 @@ test("default recording requests only microphone and releases it after review", 
         "Microphone recording transcribed. Review the audio and transcript."
     );
     await expect(page.locator("#transcript")).toHaveValue("Test microphone transcript");
-    await expect(page.locator("#transcription-info")).toHaveText("Harm: CPU, model small");
+    await expect(page.locator("#transcription-info")).toHaveText("Transcription Model Info: CPU, Size: Small");
     await expect(page.locator("#harm-download")).toHaveAttribute("download", "harm.wav");
     await expect(page.locator("#caller-review")).toBeHidden();
     await expect(page.locator("#harm-download")).toHaveAttribute("href", /^blob:/);
