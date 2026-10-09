@@ -39,7 +39,11 @@ def model_response(monkeypatch):
         payload = json.loads(request.content)
         assert request.url.path == "/api/chat"
         assert payload["model"] == "qwen3:4b"
-        assert payload["think"] is True
+        assert payload["think"] is False
+        assert payload["options"]["temperature"] == 0.7
+        assert payload["options"]["top_p"] == 0.8
+        assert payload["options"]["top_k"] == 20
+        assert payload["options"]["min_p"] == 0
         assert payload["options"]["num_predict"] == -1
         assert all(value is None for value in request.extensions["timeout"].values())
         assert payload["messages"][-1]["content"] == TRANSCRIPT
@@ -221,7 +225,7 @@ def test_long_calls_extract_all_sections_and_combine_details(monkeypatch, dialog
         start = transcript.index(section)
         assert start <= covered_until  # No transcript gaps between model requests.
         assert len(section.encode("utf-8")) <= 6000
-        assert payload["think"] is True
+        assert payload["think"] is False
         assert payload["options"]["num_predict"] == -1
         covered_until = start + len(section)
     assert covered_until == len(transcript)

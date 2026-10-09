@@ -33,7 +33,7 @@ class ExtractedCallFields(BaseModel):
 
     machine_number: str | None = Field(description="Exact machine identifier stated in the call.")
     customer: str | None = Field(description="Customer company name, if explicitly stated.")
-    problem: str | None = Field(description="Brief factual summary of the reported problem.")
+    problem: str | None = Field(description="Brief summary of the problem explicitly reported by any speaker, including Harm or Caller; do not infer additional symptoms.")
     alarm_code: str | None = Field(description="Exact alarm code or alarm text stated in the call.")
     actions_taken: str | None = Field(description="Actions already performed and their reported results.")
     distributor: str | None = Field(default=None, description="Distributor explicitly named.")
@@ -52,7 +52,7 @@ class ExtractedCallFields(BaseModel):
     recent_changes: str | None = Field(default=None, description="Reported maintenance, settings, parts, or software changes. Missing information is null, not 'no changes'.")
     missing_information: str | None = Field(default=None, description="Information explicitly described as unknown or still needed.")
     questions: str | None = Field(default=None, description="Unanswered questions actually asked in the call.")
-    reported_cause: str | None = Field(default=None, description="Cause explicitly reported, preserving any uncertainty; do not diagnose.")
+    reported_cause: str | None = Field(default=None, description="Cause or suspected cause explicitly stated by any speaker, including an unconfirmed hypothesis. Preserve uncertainty such as 'might' or 'not confirmed'; do not introduce your own diagnosis.")
     other_causes: str | None = Field(default=None, description="Other possible causes explicitly discussed, preserving uncertainty.")
     reported_facts: str | None = Field(default=None, description="Facts from this call only; do not claim a verified knowledge source.")
     search_question: str | None = Field(default=None, description="Documentation search question explicitly discussed.")
