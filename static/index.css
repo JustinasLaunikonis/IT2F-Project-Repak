@@ -124,6 +124,22 @@ textarea {
     padding: 1rem;
 }
 
+.input-selectors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.input-selectors > div {
+    flex: 1 1 16rem;
+    min-width: 0;
+}
+
+.input-selectors select {
+    width: 100%;
+    padding: 0.5rem;
+}
+
 .state-tester {
     margin-top: 20px;
     padding: 1rem;

@@ -1,11 +1,26 @@
 const { test, expect } = require("@playwright/test");
 
+test.beforeEach(async function ({ page }) {
+    await page.route("**/extract-report", route => route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ fields: {}, warning: null })
+    }));
+});
+
 test("default recording requests only microphone and releases it after review", async function ({ page }) {
     await page.route("**/transcribe", async function (route) {
         await route.fulfill({
             status: 200,
             contentType: "application/json",
-            body: JSON.stringify({ text: "Test microphone transcript" })
+            body: JSON.stringify({
+                text: "Test microphone transcript",
+                transcription_info: {
+                    Harm: {
+                        model: "small",
+                        device: "cpu"
+                    }
+                }
+            })
         });
     });
 
@@ -107,9 +122,10 @@ test("default recording requests only microphone and releases it after review", 
 
     await expect(page.locator("#activity-status")).toHaveText("Activity: Completed");
     await expect(page.locator("#activity-message")).toHaveText(
-        "Microphone recording transcribed. Review the audio and transcript."
+        "Call processed. Fill in any remaining details, then click Generate."
     );
     await expect(page.locator("#transcript")).toHaveValue("Test microphone transcript");
+    await expect(page.locator("#transcription-info")).toHaveText("Transcription Model Info: CPU, Size: Small");
     await expect(page.locator("#harm-download")).toHaveAttribute("download", "harm.wav");
     await expect(page.locator("#caller-review")).toBeHidden();
     await expect(page.locator("#harm-download")).toHaveAttribute("href", /^blob:/);
