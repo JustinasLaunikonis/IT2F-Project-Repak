@@ -5,7 +5,19 @@ test("stopping capture closes every track and shows the transcript", async funct
         await route.fulfill({
             status: 200,
             contentType: "application/json",
-            body: JSON.stringify({ text: "Test caller transcript" })
+            body: JSON.stringify({
+                text: "Test caller transcript",
+                transcription_info: {
+                    Harm: {
+                        model: "large-v3-turbo",
+                        device: "cuda"
+                    },
+                    Caller: {
+                        model: "small",
+                        device: "cpu"
+                    }
+                }
+            })
         });
     });
 
@@ -115,6 +127,8 @@ test("stopping capture closes every track and shows the transcript", async funct
         "Microphone recording transcribed. Review the audio and transcript."
     );
     await expect(page.locator("#transcript")).toHaveValue("Test caller transcript");
+    await expect(page.locator("#transcription-info")).toBeVisible();
+    await expect(page.locator("#transcription-info")).toHaveText("Transcription Model Info: Harm: GPU (CUDA), Size: Large-v3-turbo | Caller: CPU, Size: Small");
     await expect(page.locator("#harm-download")).toHaveAttribute("download", "harm.wav");
     await expect(page.locator("#caller-download")).toHaveAttribute("download", "caller.wav");
     await expect(page.locator("#harm-download")).toHaveAttribute("href", /^blob:/);

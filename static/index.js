@@ -6,6 +6,7 @@ const activityStatus = document.getElementById("activity-status");
 const activityMessage = document.getElementById("activity-message");
 const connectionStatus = document.getElementById("connection-status");
 const transcript = document.getElementById("transcript");
+const transcriptionInfo = document.getElementById("transcription-info");
 
 const startButton = document.getElementById("start-button");
 const stopButton = document.getElementById("stop-button");
@@ -229,6 +230,31 @@ async function transcribeRecording(files) {
     return result;
 }
 
+function showTranscriptionInfo(info) {
+    const channels = Object.entries(info);
+    const showChannelNames = channels.length > 1;
+    const lines = [];
+
+    for (const [speaker, details] of channels) {
+        const deviceLabel =
+            details.device === "cuda" ? "GPU (CUDA)" : "CPU";
+        const modelLabel =
+            details.model.charAt(0).toUpperCase() + details.model.slice(1);
+        const channelLabel = showChannelNames ? `${speaker}: ` : "";
+
+        lines.push(`${channelLabel}${deviceLabel}, Size: ${modelLabel}`);
+    }
+
+    transcriptionInfo.textContent =
+        `Transcription Model Info: ${lines.join(" | ")}`;
+    transcriptionInfo.hidden = false;
+}
+
+function clearTranscriptionInfo() {
+    transcriptionInfo.textContent = "";
+    transcriptionInfo.hidden = true;
+}
+
 //build a readable message from a failed server response
 async function readServerError(response) {
     let detail = "";
@@ -275,6 +301,7 @@ function showError(message) {
 }
 
 function handleUnexpectedStop(error, files) {
+    clearTranscriptionInfo();
     resetRecordingControls();
 
     if (error !== null) {
@@ -359,6 +386,7 @@ startButton.addEventListener("click", async function () {
     recordingSessionActive = true;
     stopRequested = false;
     clearRecordingReview();
+    clearTranscriptionInfo();
 
     startButton.disabled = true;
     stopButton.disabled = true;
@@ -412,6 +440,7 @@ stopButton.addEventListener("click", async function () {
         const transcriptionResult = await transcribeRecording(files); // upload both recordings and receive4 the combined transcript
 
         transcript.value = transcriptionResult.text;
+        showTranscriptionInfo(transcriptionResult.transcription_info);
 
         callDetails["[transcriptie]"] = transcriptionResult.text;
 
@@ -422,6 +451,7 @@ stopButton.addEventListener("click", async function () {
             "Microphone recording transcribed. Review the audio and transcript.";
     } catch (error) {
         //reset the interface if recording cant be stopped or transcribed
+        clearTranscriptionInfo();
         resetRecordingControls();
         showError(error.message);
     }
