@@ -84,32 +84,27 @@ def transcribe_audio_segments(audio_path):
     print(f"Using Whisper model: {model_name}; device: {device}; compute type: {compute_type}")
     print(f"Transcribing audio: {audio_path}")
 
-    segments, information = model.transcribe(audio_path, beam_size=5)
-    print(f"Detected language: {information.language}")
-    print(f"Confidence: {information.language_probability:.2f}")
+    try:
+        segments, information = model.transcribe(audio_path, beam_size=5)
+        print(f"Detected language: {information.language}")
+        print(f"Confidence: {information.language_probability:.2f}")
 
-    transcription_segments = []
-
-    for segment in segments:
-        print(
-            f"[{segment.start:.2f}s -> "
-            f"{segment.end:.2f}s] "
-            f"{segment.text}"
-        )
-
-        transcription_segment = {
-            "start": segment.start,
-            "end": segment.end,
-            "text": segment.text.strip(),
+        transcription_segments = []
+        for segment in segments:
+            print(f"[{segment.start:.2f}s -> {segment.end:.2f}s] {segment.text}")
+            transcription_segments.append({
+                "start": segment.start,
+                "end": segment.end,
+                "text": segment.text.strip(),
+            })
+        return {
+            "segments": transcription_segments,
+            "model": model_name,
+            "device": device,
         }
-
-        transcription_segments.append(transcription_segment)
-
-    return {
-        "segments": transcription_segments,
-        "model": model_name,
-        "device": device,
-    }
+    finally:
+        # Finish with Whisper before loading the report LLM into the same GPU.
+        model.model.unload_model()
 
 
 def transcribe_audio(audio_path):

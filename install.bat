@@ -62,6 +62,7 @@ if errorlevel 1 (
 
 echo Installation completed successfully.
 echo Double-click run.bat to start the application.
+echo For automatic report filling, follow the Ollama installation steps in README.md.
 pause
 exit /b 0
 

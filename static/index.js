@@ -25,12 +25,13 @@ const harmPreview = document.getElementById("harm-preview");
 const callerPreview = document.getElementById("caller-preview");
 const harmDownload = document.getElementById("harm-download");
 const callerDownload = document.getElementById("caller-download");
-const missingDetails = document.getElementById("missing-details");
+const missingDetails = document.getElementById("missing-details-form");
 const missingDetailsSubmitButton = document.getElementById(
     "missing-details-submit-button",
 );
 
 const microphoneSelect = document.getElementById("microphone-select");
+const reportModelSelect = document.getElementById("report-model-select");
 const microphoneMessage = document.getElementById("microphone-message");
 const listMicrophonesButton = document.getElementById(
     "list-microphones-button",
@@ -42,6 +43,29 @@ let harmUrl = null;
 let callerUrl = null;
 let recordingSessionActive = false; //prevents second recording session from being started
 let stopRequested = false; //prevents stop from being requested more than once
+let recordingStartedAt = null;
+
+async function loadReportModels() {
+    try {
+        const response = await fetch("/report-models");
+        if (!response.ok) throw new Error("Models could not be loaded.");
+        const result = await response.json();
+        for (const model of result.models) {
+            const option = document.createElement("option");
+            option.value = model.name;
+            option.textContent = `${model.name} — ${model.memory}${model.installed ? "" : " (not installed)"}`;
+            option.disabled = !model.installed;
+            reportModelSelect.appendChild(option);
+        }
+        reportModelSelect.value = result.default;
+    } catch (error) {
+        reportModelSelect.value = "none";
+    } finally {
+        reportModelSelect.disabled = false;
+    }
+}
+
+loadReportModels();
 
 const jsonStringTemplate = `{
     "[machinenummer]": "",
@@ -95,38 +119,80 @@ const jsonStringTemplate = `{
 
 const callDetails = JSON.parse(jsonStringTemplate);
 
-let fieldNumber = 1;
+function showMissingDetails() {
+    missingDetails.replaceChildren();
+    let fieldNumber = 1;
 
-for (let [key, value] of Object.entries(callDetails)) {
-    if (value !== null && String(value).trim() !== "") {
-        continue;
+    for (let [key, value] of Object.entries(callDetails)) {
+        if (value != null && String(value).trim() !== "") {
+            continue;
+        }
+
+        let row = document.createElement("div");
+        let label = document.createElement("label");
+        let input = document.createElement("input");
+
+        row.className = "missing-details-row";
+
+        input.type = "text";
+        input.name = key;
+        input.id = "missing-field-" + fieldNumber;
+        fieldNumber++;
+
+        label.htmlFor = input.id;
+        label.textContent = key.slice(1, -1) + ":"; //remove the surrounding square brackets
+
+        // Save manual values without rebuilding the form while the user types.
+        input.addEventListener("input", function () {
+            callDetails[key] = input.value;
+        });
+
+        row.append(label, input);
+        missingDetails.appendChild(row);
     }
+}
 
-    let row = document.createElement("div");
-    let label = document.createElement("label");
-    let input = document.createElement("input");
+showMissingDetails();
 
-    row.className = "missing-details-row";
+function fillCallDate(date) {
+    const day = date.toLocaleDateString("en-GB").replaceAll("/", "-");
+    const time = date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    callDetails["[datum]"] = day;
+    callDetails["[datum / tijd]"] = `${day} / ${time}`;
+}
 
-    input.type = "text";
-    input.name = key;
-    input.id = "missing-field-" + fieldNumber;
-    fieldNumber++;
-
-    label.htmlFor = input.id;
-    label.textContent = key.slice(1, -1) + ":"; //remove the surrounding square brackets
-
-    // Keep the values updated as the user types, updated for each value.
-    input.addEventListener("input", function () {
-        callDetails[key] = input.value;
-    });
-
-    row.append(label, input);
-    missingDetails.appendChild(row);
+async function fillReportFromTranscript(text) {
+    reportModelSelect.disabled = true;
+    try {
+        const response = await fetch("/extract-report", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ transcript: text, model: reportModelSelect.value }),
+        });
+        if (!response.ok) {
+            throw new Error("Automatic filling failed. Complete the remaining details manually.");
+        }
+        const result = await response.json();
+        for (const [key, value] of Object.entries(result.fields)) {
+            // Keep anything Harm has already entered for this call.
+            if (Object.hasOwn(callDetails, key) && typeof value === "string" && !callDetails[key].trim()) {
+                callDetails[key] = value;
+            }
+        }
+        return result.warning;
+    } catch (error) {
+        return "Automatic filling is unavailable. Complete the remaining details manually.";
+    } finally {
+        reportModelSelect.disabled = false;
+    }
 }
 
 async function submitCallData() {
+    if (recordingSessionActive) {
+        return;
+    }
     missingDetailsSubmitButton.disabled = true;
+    startButton.disabled = true;
 
     try {
         const docxGeneratorResponse = await fetch("/export", {
@@ -160,6 +226,7 @@ async function submitCallData() {
         alert(error.message);
     } finally {
         missingDetailsSubmitButton.disabled = false;
+        startButton.disabled = false;
     }
 }
 
@@ -283,6 +350,7 @@ async function readServerError(response) {
 function resetRecordingControls() {
     recordingSessionActive = false;
     stopRequested = false;
+    missingDetailsSubmitButton.disabled = false;
 
     connectionStatus.textContent = "Connection: Not connected";
 
@@ -385,6 +453,7 @@ startButton.addEventListener("click", async function () {
 
     recordingSessionActive = true;
     stopRequested = false;
+    missingDetailsSubmitButton.disabled = true;
     clearRecordingReview();
     clearTranscriptionInfo();
 
@@ -410,6 +479,16 @@ startButton.addEventListener("click", async function () {
             selectedMicrophoneId,
         );
 
+        if (recordingStartedAt !== null) {
+            // Each new recording gets its own report, not values from the previous call.
+            Object.assign(callDetails, JSON.parse(jsonStringTemplate));
+            transcript.value = "";
+        }
+        recordingStartedAt = new Date();
+        fillCallDate(recordingStartedAt);
+        showMissingDetails();
+        missingDetailsSubmitButton.disabled = true;
+
         connectionStatus.textContent = "Connection: Connected";
         stopButton.disabled = false;
 
@@ -428,6 +507,7 @@ stopButton.addEventListener("click", async function () {
 
     stopRequested = true;
     stopButton.disabled = true;
+    missingDetailsSubmitButton.disabled = true;
 
     showState("processing");
 
@@ -443,12 +523,16 @@ stopButton.addEventListener("click", async function () {
         showTranscriptionInfo(transcriptionResult.transcription_info);
 
         callDetails["[transcriptie]"] = transcriptionResult.text;
+        const warning = transcriptionResult.text.trim()
+            ? await fillReportFromTranscript(transcriptionResult.text)
+            : "No speech was transcribed. Complete the report manually.";
+        showMissingDetails();
 
         resetRecordingControls();
 
         showState("completed");
         activityMessage.textContent =
-            "Microphone recording transcribed. Review the audio and transcript.";
+            warning ?? "Call processed. Fill in any remaining details, then click Generate.";
     } catch (error) {
         //reset the interface if recording cant be stopped or transcribed
         clearTranscriptionInfo();
