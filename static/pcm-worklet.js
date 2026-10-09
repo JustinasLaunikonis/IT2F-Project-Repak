@@ -88,18 +88,27 @@ class PcmRecorder extends AudioWorkletProcessor {
         }
 
         const inputGroup = inputs[0];
+        let input = null;
+        let frameCount = 128;
 
         if (inputGroup && inputGroup.length > 0) {
-            const input = inputGroup[0];
+            input = inputGroup[0];
+            frameCount = input.length;
+        }
 
-            for (let sampleIndex = 0; sampleIndex < input.length; sampleIndex++) {
-                this.addSample(input[sampleIndex]);
-                this.frames++;
+        for (let sampleIndex = 0; sampleIndex < frameCount; sampleIndex++) {
+            //record silence when no audio arrived, so both files keep the same timeline
+            let sample = 0;
+            if (input !== null) {
+                sample = input[sampleIndex];
+            }
 
-                if (this.frames >= sampleRate * 120 * 60) {
-                    this.finish();
-                    return false;
-                }
+            this.addSample(sample);
+            this.frames++;
+
+            if (this.frames >= sampleRate * 120 * 60) {
+                this.finish();
+                return false;
             }
         }
 
