@@ -7,6 +7,7 @@ from pathlib import Path
 
 GPU_MODEL = "large-v3-turbo"
 CPU_MODEL = "small"
+SAMPLE_RATE = 16000
 _cuda_dll_handles = []
 
 
@@ -40,6 +41,42 @@ def get_whisper_device():
     return "cpu"
 
 
+def find_speech(audio_path):
+    from faster_whisper import decode_audio
+    from faster_whisper.vad import VadOptions, get_speech_timestamps
+
+    audio = decode_audio(audio_path, sampling_rate=SAMPLE_RATE)
+
+    #a bit stricter than the default so clicks and beeps are not treated as speech
+    speech_options = VadOptions(
+        threshold=0.65,
+        min_speech_duration_ms=250,
+        min_silence_duration_ms=500,
+        speech_pad_ms=200,
+    )
+    speech_chunks = get_speech_timestamps(audio, speech_options)
+
+    #convert sample positions to seconds
+    speech_clips = []
+    for chunk in speech_chunks:
+        speech_clips.append((chunk["start"] / SAMPLE_RATE, chunk["end"] / SAMPLE_RATE))
+
+    return audio, speech_clips
+
+
+def detect_speech_language(model, audio, speech_clips):
+    import numpy as np
+
+    speech_parts = []
+    for start, end in speech_clips:
+        speech_parts.append(audio[int(start * SAMPLE_RATE):int(end * SAMPLE_RATE)])
+
+    language, language_probability, all_language_probabilities = model.detect_language(
+        np.concatenate(speech_parts)
+    )
+    return language, language_probability
+
+
 def transcribe_audio_segments(audio_path):
     configure_windows_cuda_paths()
 
@@ -57,6 +94,15 @@ def transcribe_audio_segments(audio_path):
     model_override = os.environ.get("WHISPER_MODEL", "").strip()
     model_name = model_override or (GPU_MODEL if device == "cuda" else CPU_MODEL)
     compute_type = "float16" if device == "cuda" else "int8"
+
+    audio, speech_clips = find_speech(audio_path)
+    if len(speech_clips) == 0:
+        print(f"No speech found in: {audio_path}")
+        return {
+            "segments": [],
+            "model": model_name,
+            "device": device,
+        }
 
     # install.bat downloads models before transcription. Keep audio processing
     # offline even if the requested model is missing from the local cache.
@@ -85,9 +131,22 @@ def transcribe_audio_segments(audio_path):
     print(f"Transcribing audio: {audio_path}")
 
     try:
-        segments, information = model.transcribe(audio_path, beam_size=5)
-        print(f"Detected language: {information.language}")
-        print(f"Confidence: {information.language_probability:.2f}")
+        language, language_probability = detect_speech_language(model, audio, speech_clips)
+        print(f"Detected language: {language}")
+        print(f"Confidence: {language_probability:.2f}")
+
+        #Whisper expects a flat list: start1, end1, start2, end2, ...
+        clip_timestamps = []
+        for start, end in speech_clips:
+            clip_timestamps.append(start)
+            clip_timestamps.append(end)
+            
+        segments, information = model.transcribe(
+            audio,
+            beam_size=5,
+            language=language,
+            clip_timestamps=clip_timestamps,
+        )
 
         transcription_segments = []
         for segment in segments:

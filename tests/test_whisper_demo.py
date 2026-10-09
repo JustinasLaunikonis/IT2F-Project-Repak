@@ -3,8 +3,19 @@
 import importlib
 import sys
 import types
+from pathlib import Path
 
+import numpy as np
 import pytest
+
+
+def use_fake_speech(monkeypatch, whisper_demo, speech_clips):
+    #skip reading a real audio file and pretend speech was found at these times
+    def find_fake_speech(audio_path):
+        fake_audio = np.zeros(3 * whisper_demo.SAMPLE_RATE, dtype=np.float32)
+        return fake_audio, speech_clips
+
+    monkeypatch.setattr(whisper_demo, "find_speech", find_fake_speech)
 
 
 def test_import_does_not_load_model(monkeypatch):
@@ -71,8 +82,12 @@ def test_transcription_uses_local_model_and_prints_segments(
             calls.append(("load", model_name, device, compute_type, local_files_only))
             self.model = types.SimpleNamespace(unload_model=lambda: calls.append(("unload",)))
 
-        def transcribe(self, audio_path, beam_size):
-            calls.append(("transcribe", audio_path, beam_size))
+        def detect_language(self, audio):
+            calls.append(("detect_language", len(audio)))
+            return "en", 0.75, [("en", 0.75)]
+
+        def transcribe(self, audio, beam_size, language, clip_timestamps):
+            calls.append(("transcribe", beam_size, language, clip_timestamps))
             first_segment = types.SimpleNamespace(start=0.0, end=1.25, text="synthetic test")
             second_segment = types.SimpleNamespace(start=1.25, end=2.0, text="part two")
             information = types.SimpleNamespace(language="en", language_probability=0.75)
@@ -89,6 +104,7 @@ def test_transcription_uses_local_model_and_prints_segments(
 
     monkeypatch.setattr(whisper_demo, "get_whisper_device", get_selected_device)
     monkeypatch.setattr(whisper_demo, "configure_windows_cuda_paths", skip_cuda_path_configuration)
+    use_fake_speech(monkeypatch, whisper_demo, [(0.5, 1.25), (1.5, 2.0)])
 
     transcription = whisper_demo.transcribe_audio("synthetic.wav")
 
@@ -96,7 +112,9 @@ def test_transcription_uses_local_model_and_prints_segments(
 
     assert calls == [
         ("load", model_name, device, compute_type, True),
-        ("transcribe", "synthetic.wav", 5),
+        #only the 1.25 seconds of speech are used to detect the language
+        ("detect_language", 20000),
+        ("transcribe", 5, "en", [0.5, 1.25, 1.5, 2.0]),
         ("unload",),
     ]
     captured = capsys.readouterr()
@@ -117,6 +135,7 @@ def test_explicit_cpu_and_model_override(monkeypatch, capsys):
     monkeypatch.setenv("WHISPER_MODEL", "base")
     monkeypatch.setattr(whisper_demo, "configure_windows_cuda_paths", lambda: None)
     monkeypatch.setattr(whisper_demo, "get_whisper_device", lambda: pytest.fail("CUDA queried"))
+    use_fake_speech(monkeypatch, whisper_demo, [(0.0, 1.0)])
 
     calls = []
     fake_whisper = types.ModuleType("faster_whisper")
@@ -126,7 +145,10 @@ def test_explicit_cpu_and_model_override(monkeypatch, capsys):
             calls.append((model_name, device, compute_type, local_files_only))
             self.model = types.SimpleNamespace(unload_model=lambda: calls.append("unload"))
 
-        def transcribe(self, audio_path, beam_size):
+        def detect_language(self, audio):
+            return "en", 1.0, [("en", 1.0)]
+
+        def transcribe(self, audio, **options):
             return [], types.SimpleNamespace(language="en", language_probability=1.0)
 
     fake_whisper.WhisperModel = FakeModel
@@ -145,6 +167,7 @@ def test_cuda_load_failure_falls_back_to_small_cpu_model(monkeypatch, capsys):
     monkeypatch.delenv("WHISPER_MODEL", raising=False)
     monkeypatch.setattr(whisper_demo, "configure_windows_cuda_paths", lambda: None)
     monkeypatch.setattr(whisper_demo, "get_whisper_device", lambda: "cuda")
+    use_fake_speech(monkeypatch, whisper_demo, [(0.0, 1.0)])
 
     calls = []
     fake_whisper = types.ModuleType("faster_whisper")
@@ -156,7 +179,10 @@ def test_cuda_load_failure_falls_back_to_small_cpu_model(monkeypatch, capsys):
                 raise RuntimeError("missing CUDA library")
             self.model = types.SimpleNamespace(unload_model=lambda: calls.append("unload"))
 
-        def transcribe(self, audio_path, beam_size):
+        def detect_language(self, audio):
+            return "en", 1.0, [("en", 1.0)]
+
+        def transcribe(self, audio, **options):
             return [], types.SimpleNamespace(language="en", language_probability=1.0)
 
     fake_whisper.WhisperModel = FakeModel
@@ -172,6 +198,41 @@ def test_cuda_load_failure_falls_back_to_small_cpu_model(monkeypatch, capsys):
     output = capsys.readouterr()
     assert "Warning: CUDA model failed to load" in output.err
     assert "Using Whisper model: small; device: cpu" in output.out
+
+
+def test_audio_without_speech_skips_whisper(monkeypatch, capsys):
+    import whisper_demo
+
+    monkeypatch.setenv("WHISPER_DEVICE", "cpu")
+    monkeypatch.delenv("WHISPER_MODEL", raising=False)
+    monkeypatch.setattr(whisper_demo, "configure_windows_cuda_paths", lambda: None)
+    use_fake_speech(monkeypatch, whisper_demo, [])
+
+    fake_whisper = types.ModuleType("faster_whisper")
+    fake_whisper.WhisperModel = lambda *args, **kwargs: pytest.fail("Whisper model loaded")
+    monkeypatch.setitem(sys.modules, "faster_whisper", fake_whisper)
+
+    result = whisper_demo.transcribe_audio_segments("silent.wav")
+
+    assert result == {"segments": [], "model": "small", "device": "cpu"}
+    assert "No speech found in: silent.wav" in capsys.readouterr().out
+
+
+def test_speech_is_found_where_each_speaker_talks():
+    pytest.importorskip("faster_whisper")
+    import whisper_demo
+
+    call_directory = Path(__file__).resolve().parent.parent / "test_calls" / "call-02"
+
+    harm_audio, harm_clips = whisper_demo.find_speech(str(call_directory / "harm.wav"))
+    caller_audio, caller_clips = whisper_demo.find_speech(str(call_directory / "caller.wav"))
+
+    harm_starts = [start for start, end in harm_clips]
+    caller_starts = [start for start, end in caller_clips]
+
+    assert harm_starts == pytest.approx([11.4, 20.1, 28.0], abs=0.5)
+    assert caller_starts == pytest.approx([16.5, 24.8, 31.2], abs=0.5)
+    assert len(harm_audio) == len(caller_audio)
 
 
 def test_generated_filename_preserves_extension(monkeypatch):
