@@ -19,12 +19,6 @@ MODEL_FIELDS = {
     "problem": "Machine displays E204.",
     "alarm_code": "E204",
     "actions_taken": "Restarting did not help.",
-    "source_quotes": {
-        "machine_number": "Machine RP-204",
-        "problem": "Machine RP-204 displays E204.",
-        "alarm_code": "E204",
-        "actions_taken": "Restarting did not help.",
-    },
 }
 
 
@@ -63,6 +57,7 @@ def test_transcript_populates_report_fields(model_response):
     assert result["warning"] is None
     assert set(result["fields"]) == set(REPORT_FIELDS)
     assert result["fields"]["[machinenummer]"] == "RP-204"
+    assert result["fields"]["[probleem]"] == "Machine displays E204."
     assert result["fields"]["[alarmcode of exacte tekst]"] == "E204"
     assert result["fields"]["[transcriptie]"] == TRANSCRIPT
     assert result["fields"]["[klant]"] == ""
@@ -182,6 +177,7 @@ def test_long_calls_extract_all_sections_and_combine_details(monkeypatch, dialog
         f"Harm: Check {index}. Machine RP-204. {dialogue}\n" for index in range(6000)
     ) + "Caller: We replaced the sensor. Our company is Example Packaging."
     assert len(transcript) > 200000
+    prepared = report_extractor.prepare_transcript(transcript)
     requests = []
     original_client = httpx.Client
 
@@ -190,7 +186,7 @@ def test_long_calls_extract_all_sections_and_combine_details(monkeypatch, dialog
         section = payload["messages"][-1]["content"]
         requests.append(payload)
         fields = {"machine_number": None, "customer": None, "problem": None,
-                  "alarm_code": None, "actions_taken": None, "source_quotes": {}}
+                  "alarm_code": None, "actions_taken": None}
         facts = {
             "machine_number": ("RP-204", "Machine RP-204"),
             "alarm_code": ("E204", "displays E204"),
@@ -199,10 +195,9 @@ def test_long_calls_extract_all_sections_and_combine_details(monkeypatch, dialog
         }
         if "We replaced the sensor." in section:
             facts["actions_taken"] = ("We replaced the sensor.", "We replaced the sensor.")
-        for name, (value, quote) in facts.items():
-            if quote in section:
+        for name, (value, text) in facts.items():
+            if text in section:
                 fields[name] = value
-                fields["source_quotes"][name] = quote
         return httpx.Response(200, json={"done": True, "message": {"content": json.dumps(fields)}})
 
     monkeypatch.setattr(report_extractor.httpx, "Client", lambda **kwargs: original_client(
@@ -222,13 +217,13 @@ def test_long_calls_extract_all_sections_and_combine_details(monkeypatch, dialog
     covered_until = 0
     for payload in requests:
         section = payload["messages"][-1]["content"]
-        start = transcript.index(section)
+        start = prepared.index(section)
         assert start <= covered_until  # No transcript gaps between model requests.
         assert len(section.encode("utf-8")) <= 6000
         assert payload["think"] is False
         assert payload["options"]["num_predict"] == -1
         covered_until = start + len(section)
-    assert covered_until == len(transcript)
+    assert covered_until == len(prepared)
     assert all(payload["keep_alive"] == "5m" for payload in requests[:-1])
     assert requests[-1]["keep_alive"] == 0
 
@@ -241,13 +236,45 @@ def test_section_overlap_keeps_boundary_dialogue_together():
     assert any(dialogue in section for section in sections)
 
 
-def test_unquoted_suggestions_stay_empty(model_response):
-    values = dict(MODEL_FIELDS, customer="Invented Company", contact_person="Caller")
-    values["source_quotes"] = dict(MODEL_FIELDS["source_quotes"], contact_person="Caller")
+def test_unknown_values_and_speaker_labels_stay_empty(model_response):
+    values = dict(MODEL_FIELDS, customer="not mentioned", contact_person="Caller", symptoms="   ")
     model_response["message"]["content"] = json.dumps(values)
     result = report_extractor.extract_call_fields_from_transcript(TRANSCRIPT)
     assert result.customer is None
     assert result.contact_person is None
+    assert result.symptoms is None
+
+
+def test_timestamp_fragments_are_joined_without_merging_different_speakers(monkeypatch):
+    transcript = (
+        "[00:00:01] Harm: The problem is that the sealing\n"
+        "[00:00:05] Harm: station jams when we increase the speed.\n"
+        "[00:00:09] Caller: Our machine is RP-315.\n"
+        "[00:00:12] Harm: Has it been restarted?"
+    )
+    expected = (
+        "Harm: The problem is that the sealing station jams when we increase the speed.\n"
+        "Caller: Our machine is RP-315.\n"
+        "Harm: Has it been restarted?"
+    )
+    assert report_extractor.prepare_transcript(transcript) == expected
+    original_client = httpx.Client
+
+    def respond(request):
+        payload = json.loads(request.content)
+        assert payload["messages"][-1]["content"] == expected
+        fields = dict(MODEL_FIELDS, machine_number="RP-315", alarm_code=None,
+                      problem="Sealing station jams when speed increases.", actions_taken=None)
+        return httpx.Response(200, json={"done": True, "message": {"content": json.dumps(fields)}})
+
+    monkeypatch.setattr(report_extractor.httpx, "Client", lambda **kwargs: original_client(
+        transport=httpx.MockTransport(respond), **kwargs,
+    ))
+    response = TestClient(main.app).post("/extract-report", json={"transcript": transcript})
+    result = response.json()
+    assert result["mode"] == "llm"
+    assert result["fields"]["[probleem]"] == "Sealing station jams when speed increases."
+    assert result["fields"]["[transcriptie]"] == transcript
 
 
 def test_fields_cover_word_template():

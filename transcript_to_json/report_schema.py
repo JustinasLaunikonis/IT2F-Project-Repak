@@ -32,22 +32,22 @@ class ExtractedCallFields(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True,)
 
     machine_number: str | None = Field(description="Exact machine identifier stated in the call.")
-    customer: str | None = Field(description="Customer company name, if explicitly stated.")
-    problem: str | None = Field(description="Brief summary of the problem explicitly reported by any speaker, including Harm or Caller; do not infer additional symptoms.")
+    customer: str | None = Field(description="Customer company name")
+    problem: str | None = Field(description="Brief summary of the main issue or complaint explicitly reported by any speaker, including software issues in a test recording. The phrase 'The problem is' is not required; do not infer additional symptoms.")
     alarm_code: str | None = Field(description="Exact alarm code or alarm text stated in the call.")
     actions_taken: str | None = Field(description="Actions already performed and their reported results.")
     distributor: str | None = Field(default=None, description="Distributor explicitly named.")
-    technician: str | None = Field(default=None, description="Customer's technician explicitly named.")
+    technician: str | None = Field(default=None, description="Customer's technician/mechanic explicitly named.")
     contact_person: str | None = Field(default=None, description="Person explicitly identified as the contact.")
-    time_difference: str | None = Field(default=None, description="Time difference explicitly stated; never infer it from a country.")
+    time_difference: str | None = Field(default=None, description="Time difference explicitly stated or inferred from a country.")
     engineer: str | None = Field(default=None, description="Engineer explicitly assigned to this case.")
-    contact_details: str | None = Field(default=None, description="Phone number or email explicitly stated.")
-    language: str | None = Field(default=None, description="Language used in the conversation.")
+    contact_details: str | None = Field(default=None, description="Phone number or email explicitly stated to contact caller again.")
+    language: str | None = Field(default=None, description="Language used in the conversation, infer from transcript language.")
     repak_employee: str | None = Field(default=None, description="Repak employee's actual name if stated; speaker labels alone do not identify a person.")
-    machine_status: str | None = Field(default=None, description="Reported machine status: stopped, limited production, or in production.")
+    machine_status: str | None = Field(default=None, description="Reported machine status. Choose between one of these three only: stopped, limited production, in production.")
     affected_part: str | None = Field(default=None, description="Affected part or station explicitly identified.")
     problem_started: str | None = Field(default=None, description="When and in what situation the fault started, as reported; do not invent an absolute date.")
-    frequency: str | None = Field(default=None, description="Reported frequency: once, intermittent, or continuous.")
+    frequency: str | None = Field(default=None, description="Reported frequency. Choose between one of these three only: one-off, occasionally, continuously.")
     symptoms: str | None = Field(default=None, description="Observed symptoms explicitly reported.")
     recent_changes: str | None = Field(default=None, description="Reported maintenance, settings, parts, or software changes. Missing information is null, not 'no changes'.")
     missing_information: str | None = Field(default=None, description="Information explicitly described as unknown or still needed.")
@@ -59,8 +59,6 @@ class ExtractedCallFields(BaseModel):
     search_terms: str | None = Field(default=None, description="Exact machine identifiers, alarm codes, and reported component names usable as search terms.")
     advice: str | None = Field(default=None, description="Advice actually given in the call, attributed to its speaker; do not generate new repair advice.")
     uncertainties: str | None = Field(default=None, description="Ambiguities or uncertainties explicitly expressed in the call.")
-
-    source_quotes: dict[str, str] = Field(description="For every populated field, give a short exact transcript quote that supports it, keyed by the field name. Omit unknown fields.",)
 
 
 PLACEHOLDERS = {
@@ -98,7 +96,7 @@ PLACEHOLDERS = {
 def to_report_fields(extracted: ExtractedCallFields) -> dict:
     fields = empty_report()
 
-    for name, value in extracted.model_dump(exclude={"source_quotes"}).items():
+    for name, value in extracted.model_dump().items():
         placeholder = PLACEHOLDERS[name]
         fields[placeholder] = value.strip() if value is not None else ""
 
