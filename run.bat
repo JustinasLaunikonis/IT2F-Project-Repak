@@ -15,6 +15,16 @@ if not exist ".venv\scripts\python.exe" (
     exit /b 1
 )
 
+rem repak must open in google chrome
+set "chrome=%localappdata%\google\chrome\application\chrome.exe"
+if not exist "%chrome%" set "chrome=%programfiles%\google\chrome\application\chrome.exe"
+if not exist "%chrome%" set "chrome=%programfiles(x86)%\google\chrome\application\chrome.exe"
+if not exist "%chrome%" (
+    echo google chrome is required. run install.bat to install it.
+    pause
+    exit /b 1
+)
+
 rem load the device selected during installation
 if not defined whisper_device (
     if exist ".venv\repak-settings.bat" call ".venv\repak-settings.bat"
@@ -46,22 +56,22 @@ rem open the existing application if it is already running
 powershell -noprofile -command ^
     "try {" ^
     "    $page = invoke-webrequest -usebasicparsing 'http://127.0.0.1:8000' -timeoutsec 2 -erroraction stop;" ^
-    "    if ($page.content -like '*repak live call transcription*') { start-process 'http://127.0.0.1:8000'; exit 0 }" ^
+    "    if ($page.content -like '*repak live call transcription*') { start-process -filepath $env:chrome -argumentlist 'http://127.0.0.1:8000' -erroraction stop; exit 0 }" ^
     "} catch {}; exit 1"
 if not errorlevel 1 exit /b 0
 
-rem wait in the background, then open the browser when repak is ready
+rem wait in the background, then open google chrome when repak is ready
 start "" /b powershell -noprofile -command ^
     "for ($attempt = 0; $attempt -lt 30; $attempt++) {" ^
     "    try {" ^
     "        $page = invoke-webrequest -usebasicparsing 'http://127.0.0.1:8000' -timeoutsec 2 -erroraction stop;" ^
-    "        if ($page.content -like '*repak live call transcription*') { start-process 'http://127.0.0.1:8000'; exit 0 }" ^
+    "        if ($page.content -like '*repak live call transcription*') { start-process -filepath $env:chrome -argumentlist 'http://127.0.0.1:8000' -erroraction stop; exit 0 }" ^
     "    } catch {};" ^
     "    start-sleep -seconds 1;" ^
     "}; exit 1"
 
 echo starting repak transcription...
-echo the application will open in your default browser.
+echo the application will open in google chrome.
 echo keep this window open. press ctrl+c to stop the application.
 
 ".venv\scripts\python.exe" -m uvicorn main:app --host 127.0.0.1 --port 8000

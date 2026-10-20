@@ -3,16 +3,17 @@
 ## Set up and run on Windows
 
 Use Windows 10 or 11 (64-bit x64), an internet connection for installation,
-several gigabytes of free disk space, and a microphone. Use Chrome or Edge
-for microphone and system-audio recording.
+several gigabytes of free disk space, and a microphone. **Google Chrome is
+the only supported browser.** Other browsers, including Microsoft Edge,
+are not supported. `install.bat` installs Chrome if it is missing.
 
 1. Download this project and unzip it to a folder you can write to. Keep all project files together.
-2. Double-click `install.bat`. It installs Python 3.13 and Ollama if needed, creates a private Python environment, installs the packages, and downloads Whisper and the `qwen3:4b` report model. On NVIDIA computers it also installs the GPU libraries and downloads a CPU fallback model. If GPU library installation fails, setup continues using the CPU. Wait for **installation completed successfully**.
-3. Double-click `run.bat`. It loads the saved device preference, starts Ollama if needed, and opens Repak in your default browser once the server is ready. Leave its window open. Press **Ctrl+C** in that window to stop Repak. Ollama may continue running in the background.
+2. Double-click `install.bat`. It installs Google Chrome, Python 3.13, and Ollama if needed, creates a private Python environment, installs the packages, and downloads Whisper and the `qwen3:4b` report model. On NVIDIA computers it also installs the GPU libraries and downloads a CPU fallback model. If GPU library installation fails, setup continues using the CPU. Wait for **installation completed successfully**.
+3. Double-click `run.bat`. It loads the saved device preference, starts Ollama if needed, and opens Repak in Google Chrome once the server is ready, regardless of your default browser. Leave its window open. Press **Ctrl+C** in that window to stop Repak. Ollama may continue running in the background.
 
 For later runs, use only `run.bat`. If Repak is already running, it opens the
-existing application. If your default browser does not support recording,
-open [http://127.0.0.1:8000](http://127.0.0.1:8000) in Chrome or Edge.
+existing application in Google Chrome. If Chrome is missing, the launcher
+asks you to rerun `install.bat`; it does not open another browser.
 Installation downloads can take several minutes. If installation fails,
 read the message and rerun `install.bat` after resolving the problem.
 Recording, transcription, report filling, and DOCX export run locally.
@@ -27,7 +28,7 @@ internet:
    required programs, packages, Whisper models, and Ollama report model.
 3. Open the application once with `run.bat`.
 
-Keep the project folder, its `.venv` folder, the Python and Ollama installations,
+Keep the project folder, its `.venv` folder, the Chrome, Python, and Ollama installations,
 and the downloaded Whisper and Ollama model caches on the computer. After this setup,
 recording, transcription, automatic report filling, and DOCX export do not
 need an internet connection. Whisper is opened with
@@ -38,7 +39,7 @@ missing model during transcription.
 
 1. Finish the one-time setup above, close the application, and turn off Wi-Fi
    and any wired network connection.
-2. Double-click `run.bat`; the browser opens automatically.
+2. Double-click `run.bat`; Google Chrome opens automatically.
 3. Select a microphone, record a short test call, and stop the recording.
    The application uploads the recording to local Whisper and displays the
    transcript. Caller audio is included if enabled.

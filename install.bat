@@ -8,6 +8,25 @@ if errorlevel 1 (
     exit /b 1
 )
 
+rem google chrome is the only supported browser
+set "chrome=%localappdata%\google\chrome\application\chrome.exe"
+if not exist "%chrome%" set "chrome=%programfiles%\google\chrome\application\chrome.exe"
+if not exist "%chrome%" set "chrome=%programfiles(x86)%\google\chrome\application\chrome.exe"
+if exist "%chrome%" goto chrome_done
+
+echo downloading google chrome...
+powershell -noprofile -command "$erroractionpreference='stop'; invoke-webrequest -usebasicparsing 'https://dl.google.com/chrome/install/latest/chrome_installer.exe' -outfile (join-path $env:temp 'chrome_installer.exe')"
+if errorlevel 1 goto chrome_fail
+
+echo installing google chrome...
+start "" /wait "%temp%\chrome_installer.exe" /silent /install
+if errorlevel 1 goto chrome_fail
+set "chrome=%localappdata%\google\chrome\application\chrome.exe"
+if not exist "%chrome%" set "chrome=%programfiles%\google\chrome\application\chrome.exe"
+if not exist "%chrome%" set "chrome=%programfiles(x86)%\google\chrome\application\chrome.exe"
+if not exist "%chrome%" goto chrome_fail
+
+:chrome_done
 set "python=%localappdata%\programs\python\python313\python.exe"
 set "installer=%temp%\python-3.13.0-amd64.exe"
 
@@ -133,6 +152,11 @@ echo installation completed successfully.
 echo double-click run.bat to start the application.
 pause
 exit /b 0
+
+:chrome_fail
+echo could not install google chrome. check your internet connection and run install.bat again.
+pause
+exit /b 1
 
 :python_install_fail
 echo python 3.13 installation failed.
