@@ -196,8 +196,127 @@ def test_cuda_load_failure_falls_back_to_small_cpu_model(monkeypatch, capsys):
         "unload",
     ]
     output = capsys.readouterr()
-    assert "Warning: CUDA model failed to load" in output.err
+    assert "Warning: CUDA transcription failed" in output.err
     assert "Using Whisper model: small; device: cpu" in output.out
+
+
+@pytest.mark.parametrize("failure_stage", ["language", "transcribe", "segments"])
+@pytest.mark.parametrize("error_type", [OSError, RuntimeError])
+@pytest.mark.parametrize("model_override", [None, "base"])
+def test_cuda_processing_failure_retries_on_cpu(
+    monkeypatch, capsys, failure_stage, error_type, model_override
+):
+    import whisper_demo
+
+    monkeypatch.setenv("WHISPER_DEVICE", "auto")
+    if model_override:
+        monkeypatch.setenv("WHISPER_MODEL", model_override)
+    else:
+        monkeypatch.delenv("WHISPER_MODEL", raising=False)
+    monkeypatch.setattr(whisper_demo, "configure_windows_cuda_paths", lambda: None)
+    monkeypatch.setattr(whisper_demo, "get_whisper_device", lambda: "cuda")
+    use_fake_speech(monkeypatch, whisper_demo, [(0.0, 1.0)])
+    calls = []
+
+    def fail():
+        raise error_type("Library cublas64_12.dll is not found or cannot be loaded")
+
+    class FakeModel:
+        def __init__(self, model_name, device, compute_type, local_files_only):
+            self.device = device
+            calls.append(("load", model_name, device, compute_type, local_files_only))
+            self.model = types.SimpleNamespace(
+                unload_model=lambda: calls.append(("unload", device))
+            )
+
+        def detect_language(self, audio):
+            if self.device == "cuda" and failure_stage == "language":
+                fail()
+            return "en", 1.0, [("en", 1.0)]
+
+        def transcribe(self, audio, **options):
+            if self.device == "cuda" and failure_stage == "transcribe":
+                fail()
+            return self.segments(), None
+
+        def segments(self):
+            if self.device == "cuda":
+                yield types.SimpleNamespace(start=0.0, end=0.5, text="Partial GPU result")
+                fail()
+            yield types.SimpleNamespace(start=0.0, end=1.0, text="Recovered on CPU")
+
+    monkeypatch.setitem(sys.modules, "faster_whisper", types.SimpleNamespace(WhisperModel=FakeModel))
+
+    result = whisper_demo.transcribe_audio_segments("synthetic.wav")
+
+    assert result == {
+        "segments": [{"start": 0.0, "end": 1.0, "text": "Recovered on CPU"}],
+        "model": model_override or "small",
+        "device": "cpu",
+    }
+    assert calls == [
+        ("load", model_override or "large-v3-turbo", "cuda", "float16", True),
+        ("unload", "cuda"),
+        ("load", model_override or "small", "cpu", "int8", True),
+        ("unload", "cpu"),
+    ]
+    assert "cublas64_12.dll" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("initial_device", ["cpu", "cuda"])
+def test_cpu_failure_is_reported_without_another_retry(monkeypatch, initial_device):
+    import whisper_demo
+
+    monkeypatch.setenv("WHISPER_DEVICE", "auto")
+    monkeypatch.delenv("WHISPER_MODEL", raising=False)
+    monkeypatch.setattr(whisper_demo, "configure_windows_cuda_paths", lambda: None)
+    monkeypatch.setattr(whisper_demo, "get_whisper_device", lambda: initial_device)
+    use_fake_speech(monkeypatch, whisper_demo, [(0.0, 1.0)])
+    attempts = []
+
+    class FakeModel:
+        def __init__(self, model_name, device, **options):
+            attempts.append(device)
+            raise RuntimeError(f"{device} failed to load")
+
+    monkeypatch.setitem(sys.modules, "faster_whisper", types.SimpleNamespace(WhisperModel=FakeModel))
+
+    with pytest.raises(RuntimeError, match="cpu failed to load"):
+        whisper_demo.transcribe_audio_segments("synthetic.wav")
+
+    assert attempts == (["cuda", "cpu"] if initial_device == "cuda" else ["cpu"])
+
+
+def test_windows_cuda_wheel_directories_are_registered(monkeypatch, tmp_path):
+    import whisper_demo
+
+    directories = [
+        tmp_path / "Lib" / "site-packages" / "nvidia" / library / "bin"
+        for library in ["cublas", "cudnn", "cuda_runtime", "cuda_nvrtc"]
+    ]
+    for directory in directories:
+        directory.mkdir(parents=True)
+    handles = []
+    registered = []
+
+    def add_directory(directory):
+        registered.append(directory)
+        return object()
+
+    environment = {"PATH": "existing-path"}
+    monkeypatch.setattr(whisper_demo, "sys", types.SimpleNamespace(prefix=str(tmp_path)))
+    monkeypatch.setattr(whisper_demo, "os", types.SimpleNamespace(
+        name="nt", environ=environment, pathsep=";", add_dll_directory=add_directory
+    ))
+    monkeypatch.setattr(whisper_demo, "_cuda_dll_handles", handles)
+
+    whisper_demo.configure_windows_cuda_paths()
+
+    assert registered == [str(directory) for directory in directories]
+    assert len(handles) == 4
+    assert environment["PATH"].split(";") == [
+        *(str(directory) for directory in reversed(directories)), "existing-path"
+    ]
 
 
 def test_audio_without_speech_skips_whisper(monkeypatch, capsys):
