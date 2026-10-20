@@ -15,7 +15,7 @@ if not exist "%chrome%" set "chrome=%programfiles(x86)%\google\chrome\applicatio
 if exist "%chrome%" goto chrome_done
 
 echo downloading google chrome...
-powershell -noprofile -command "$erroractionpreference='stop'; invoke-webrequest -usebasicparsing 'https://dl.google.com/chrome/install/latest/chrome_installer.exe' -outfile (join-path $env:temp 'chrome_installer.exe')"
+powershell -noprofile -command "$erroractionpreference='stop'; $progresspreference='silentlycontinue'; invoke-webrequest -usebasicparsing 'https://dl.google.com/chrome/install/latest/chrome_installer.exe' -outfile (join-path $env:temp 'chrome_installer.exe')"
 if errorlevel 1 goto chrome_fail
 
 echo installing google chrome...
@@ -34,7 +34,7 @@ rem skip installation if python 3.13 is already installed
 "%python%" --version >nul 2>&1 && goto python_install_done
 
 echo downloading python 3.13...
-powershell -noprofile -command "$erroractionpreference='stop'; invoke-webrequest -usebasicparsing 'https://www.python.org/ftp/python/3.13.0/python-3.13.0-amd64.exe' -outfile $env:installer"
+powershell -noprofile -command "$erroractionpreference='stop'; $progresspreference='silentlycontinue'; invoke-webrequest -usebasicparsing 'https://www.python.org/ftp/python/3.13.0/python-3.13.0-amd64.exe' -outfile $env:installer"
 if errorlevel 1 goto python_install_fail
 
 echo installing python 3.13...
@@ -46,6 +46,21 @@ if errorlevel 1 goto python_install_fail
 "%python%" --version || goto python_install_fail
 echo python 3.13 installation is complete.
 
+rem whisper needs the visual c++ runtime on both cpu and gpu computers
+echo downloading the microsoft visual c++ runtime...
+powershell -noprofile -command "$erroractionpreference='stop'; $progresspreference='silentlycontinue'; invoke-webrequest -usebasicparsing 'https://aka.ms/vc14/vc_redist.x64.exe' -outfile (join-path $env:temp 'vc_redist.x64.exe')"
+if errorlevel 1 goto runtime_fail
+
+echo installing the microsoft visual c++ runtime. allow the windows permission prompt if shown.
+start "" /wait "%temp%\vc_redist.x64.exe" /install /passive /norestart /log "%temp%\repak-vc-runtime.log"
+set "runtime_exit=%errorlevel%"
+if "%runtime_exit%"=="3010" goto runtime_restart
+rem these codes mean a newer runtime is already installed
+if "%runtime_exit%"=="1638" goto runtime_done
+if "%runtime_exit%"=="-2147023258" goto runtime_done
+if not "%runtime_exit%"=="0" goto runtime_fail
+
+:runtime_done
 rem use ollama from path, or fall back to its standard installation folder
 set "ollama=ollama.exe"
 where ollama.exe >nul 2>&1
@@ -53,8 +68,9 @@ if errorlevel 1 set "ollama=%localappdata%\programs\ollama\ollama.exe"
 "%ollama%" --version >nul 2>&1
 if not errorlevel 1 goto ollama_done
 
-echo downloading ollama...
-powershell -noprofile -command "$erroractionpreference='stop'; invoke-webrequest -usebasicparsing 'https://ollama.com/download/OllamaSetup.exe' -outfile (join-path $env:temp 'ollamasetup.exe')"
+echo downloading ollama. the installer is about 1.6 gb.
+echo this can take several minutes. keep this window open until the download finishes.
+powershell -noprofile -command "$erroractionpreference='stop'; $progresspreference='silentlycontinue'; invoke-webrequest -usebasicparsing 'https://ollama.com/download/OllamaSetup.exe' -outfile (join-path $env:temp 'ollamasetup.exe')"
 if errorlevel 1 goto ollama_fail
 
 echo installing ollama...
@@ -142,8 +158,8 @@ echo downloading the whisper models for this computer...
 ".venv\scripts\python.exe" download_whisper_model.py
 
 if errorlevel 1 (
-    echo failed to download the whisper model.
-    echo check your internet connection and run install.bat again.
+    echo could not prepare the whisper models. see the error above.
+    echo resolve the reported problem, then run install.bat again.
     pause
     exit /b 1
 )
@@ -162,6 +178,19 @@ exit /b 1
 echo python 3.13 installation failed.
 pause
 exit /b 1
+
+:runtime_fail
+echo could not download or install the microsoft visual c++ runtime.
+echo check your internet connection and allow the windows permission prompt, then run install.bat again.
+echo installation details, if available: %temp%\repak-vc-runtime.log
+pause
+exit /b 1
+
+:runtime_restart
+echo the microsoft visual c++ runtime was installed, but windows requires a restart.
+echo restart this computer, then run install.bat again to finish setup.
+pause
+exit /b 3010
 
 :ollama_fail
 echo could not install or start ollama. run install.bat again.
