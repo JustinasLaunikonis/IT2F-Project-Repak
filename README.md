@@ -4,49 +4,14 @@
 
 Use Windows 10 or 11 (64-bit x64), an internet connection for installation,
 several gigabytes of free disk space, and a microphone. **Google Chrome is
-the only supported browser.** Other browsers, including Microsoft Edge,
-are not supported. `install.bat` installs Chrome if it is missing.
+the only supported browser.** `install.bat` installs Chrome if it is missing.
 
 1. Download this project and unzip it to a folder you can write to. Keep all project files together.
-2. Double-click `install.bat`. It installs Google Chrome, Python 3.13, and Ollama if needed, creates a private Python environment, installs the packages, and downloads Whisper and the `qwen3:4b` report model. On NVIDIA computers it also installs the GPU libraries and downloads a CPU fallback model. If GPU library installation fails, setup continues using the CPU. Wait for **installation completed successfully**.
-3. Double-click `run.bat`. It loads the saved device preference, starts Ollama if needed, and opens Repak in Google Chrome once the server is ready, regardless of your default browser. Leave its window open. Press **Ctrl+C** in that window to stop Repak. Ollama may continue running in the background.
+2. Double-click `install.bat`.
+3. Double-click `run.bat`.
 
-For later runs, use only `run.bat`. If Repak is already running, it opens the
-existing application in Google Chrome. If Chrome is missing, the launcher
-asks you to rerun `install.bat`; it does not open another browser.
-Installation downloads can take several minutes. If installation fails,
-read the message and rerun `install.bat` after resolving the problem.
-Recording, transcription, report filling, and DOCX export run locally.
+For later runs, use only `run.bat`.
 
-## Prepare the application for offline use
-
-Complete these one-time downloads while the computer is connected to the
-internet:
-
-1. Download and unzip this project.
-2. Run `install.bat` and wait for installation to complete. It downloads the
-   required programs, packages, Whisper models, and Ollama report model.
-3. Open the application once with `run.bat`.
-
-Keep the project folder, its `.venv` folder, the Chrome, Python, and Ollama installations,
-and the downloaded Whisper and Ollama model caches on the computer. After this setup,
-recording, transcription, automatic report filling, and DOCX export do not
-need an internet connection. Whisper is opened with
-`local_files_only=True`, so it will report an error instead of downloading a
-missing model during transcription.
-
-### Verify the complete workflow without a network connection
-
-1. Finish the one-time setup above, close the application, and turn off Wi-Fi
-   and any wired network connection.
-2. Double-click `run.bat`; Google Chrome opens automatically.
-3. Select a microphone, record a short test call, and stop the recording.
-   The application uploads the recording to local Whisper and displays the
-   transcript. Caller audio is included if enabled.
-4. Review the transcript and automatically filled report fields, complete
-   the remaining details, and save the generated DOCX report. Recordings can
-   also be played back and downloaded from the page.
-5. Open the DOCX and confirm that it contains the transcript and call details.
 
 ## Run local Whisper transcription
 
@@ -78,15 +43,6 @@ Remove the overrides with `Remove-Item Env:WHISPER_DEVICE, Env:WHISPER_MODEL`.
 If CUDA is unavailable or its libraries fail to load, the command warns and
 uses the CPU. A model override remains in effect during that fallback.
 
-GPU inference requires a compatible NVIDIA driver, [CUDA 12 cuBLAS and CUDA 12
-cuDNN 9](https://github.com/SYSTRAN/faster-whisper#gpu). On Windows, `install.bat`
-installs the GPU libraries when an NVIDIA GPU is detected, and the application
-adds their DLL directories automatically. NVIDIA acceleration is optional;
-other graphics configurations use CPU transcription. The device preference
-is saved in `.venv/repak-settings.bat` and loaded by `run.bat`. An explicit
-`WHISPER_DEVICE` environment variable takes precedence. On Linux,
-set `LD_LIBRARY_PATH` to the installed cuBLAS and cuDNN library directories
-before starting Python. CPU transcription does not require these GPU libraries.
 
 ### Test the WAV upload endpoint
 
