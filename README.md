@@ -2,38 +2,35 @@
 
 ## Set up and run on Windows
 
-1. Install [Python 3.10 or newer](https://www.python.org/downloads/windows/). During installation, select **Add python.exe to PATH**.
-2. Download this project and unzip it to a folder on this computer. Keep all project files together.
-3. With an internet connection, double-click `install.bat` in that folder. It creates a private Python environment, installs the required packages, and downloads the Whisper model. If CUDA is detected, it also downloads the smaller CPU model in case GPU loading fails. The first installation can take several minutes and requires space for the packages and models. Wait for **Installation completed successfully**. 
-4. Install [Ollama](https://ollama.com/download) and leave it running.
-5. Open PowerShell in the project folder and download the report model:
+Use Windows 10 or 11 (64-bit x64), an internet connection for installation,
+several gigabytes of free disk space, and a microphone. Use Chrome or Edge
+for microphone and system-audio recording.
 
-   ```powershell
-   ollama pull qwen3:4b
-   ```
-6. Double-click `run.bat`. Leave its window open. Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in a browser on the same computer. Press **Ctrl+C** in the window to stop the application.
+1. Download this project and unzip it to a folder you can write to. Keep all project files together.
+2. Double-click `install.bat`. It installs Python 3.13 and Ollama if needed, creates a private Python environment, installs the packages, and downloads Whisper and the `qwen3:4b` report model. On NVIDIA computers it also installs the GPU libraries and downloads a CPU fallback model. If GPU library installation fails, setup continues using the CPU. Wait for **installation completed successfully**.
+3. Double-click `run.bat`. It loads the saved device preference, starts Ollama if needed, and opens Repak in your default browser once the server is ready. Leave its window open. Press **Ctrl+C** in that window to stop Repak. Ollama may continue running in the background.
 
-For later runs, use only `run.bat`. If installation stops with an error, read the message in its window and run `install.bat` again after fixing the problem. The model download needs internet during installation; audio processing is local. The current browser page is a local application preview. The full recording and transcription flow is still being developed.
+For later runs, use only `run.bat`. If Repak is already running, it opens the
+existing application. If your default browser does not support recording,
+open [http://127.0.0.1:8000](http://127.0.0.1:8000) in Chrome or Edge.
+Installation downloads can take several minutes. If installation fails,
+read the message and rerun `install.bat` after resolving the problem.
+Recording, transcription, report filling, and DOCX export run locally.
 
 ## Prepare the application for offline use
 
 Complete these one-time downloads while the computer is connected to the
 internet:
 
-1. Install Python 3.10 or newer.
-2. Download and unzip this project.
-3. Run `install.bat`. It creates `.venv`, installs the Python packages from
-   `requirements.txt`, and stores the Whisper model in the local Hugging Face
-   cache.
-4. If the computer will use an NVIDIA GPU, install the compatible NVIDIA
-   driver, CUDA 12 cuBLAS, and CUDA 12 cuDNN 9. These are not needed for the
-   CPU fallback.
-5. Open the application once with `run.bat` and confirm that
-   [http://127.0.0.1:8000](http://127.0.0.1:8000) loads.
+1. Download and unzip this project.
+2. Run `install.bat` and wait for installation to complete. It downloads the
+   required programs, packages, Whisper models, and Ollama report model.
+3. Open the application once with `run.bat`.
 
-Keep the project folder, its `.venv` folder, and the downloaded model cache on
-the computer. After this setup, `run.bat`, recording, transcription, and DOCX
-export do not need an internet connection. Whisper is opened with
+Keep the project folder, its `.venv` folder, the Python and Ollama installations,
+and the downloaded Whisper and Ollama model caches on the computer. After this setup,
+recording, transcription, automatic report filling, and DOCX export do not
+need an internet connection. Whisper is opened with
 `local_files_only=True`, so it will report an error instead of downloading a
 missing model during transcription.
 
@@ -41,25 +38,14 @@ missing model during transcription.
 
 1. Finish the one-time setup above, close the application, and turn off Wi-Fi
    and any wired network connection.
-2. Double-click `run.bat` and open
-   [http://127.0.0.1:8000](http://127.0.0.1:8000).
-3. Select a microphone, record a short test call, stop the recording, listen
-   to it, and download `harm.wav`. Download `caller.wav` too if caller audio
-   was enabled.
-4. In PowerShell, transcribe each downloaded recording locally:
-
-   ```powershell
-   .\.venv\Scripts\python.exe whisper_demo.py "C:\path\to\harm.wav"
-   .\.venv\Scripts\python.exe whisper_demo.py "C:\path\to\caller.wav"
-   ```
-
-5. Copy the transcript into the **transcriptie** field in the browser, fill in
-   the other required call details, and save the generated DOCX report.
-6. Open the DOCX and confirm that it contains the transcript and call details.
-
-The current interface does not send recordings directly to Whisper. The two
-local transcription commands are therefore a manual step in this offline
-verification cycle.
+2. Double-click `run.bat`; the browser opens automatically.
+3. Select a microphone, record a short test call, and stop the recording.
+   The application uploads the recording to local Whisper and displays the
+   transcript. Caller audio is included if enabled.
+4. Review the transcript and automatically filled report fields, complete
+   the remaining details, and save the generated DOCX report. Recordings can
+   also be played back and downloaded from the page.
+5. Open the DOCX and confirm that it contains the transcript and call details.
 
 ## Run local Whisper transcription
 
@@ -92,10 +78,12 @@ If CUDA is unavailable or its libraries fail to load, the command warns and
 uses the CPU. A model override remains in effect during that fallback.
 
 GPU inference requires a compatible NVIDIA driver, [CUDA 12 cuBLAS and CUDA 12
-cuDNN 9](https://github.com/SYSTRAN/faster-whisper#gpu). On Windows, install
-these libraries separately and add their DLL directories to `PATH` before
-starting Python. The `nvidia-*` packages in `requirements.txt` apply only to
-Linux, as faster-whisper documents their pip installation for Linux. On Linux,
+cuDNN 9](https://github.com/SYSTRAN/faster-whisper#gpu). On Windows, `install.bat`
+installs the GPU libraries when an NVIDIA GPU is detected, and the application
+adds their DLL directories automatically. NVIDIA acceleration is optional;
+other graphics configurations use CPU transcription. The device preference
+is saved in `.venv/repak-settings.bat` and loaded by `run.bat`. An explicit
+`WHISPER_DEVICE` environment variable takes precedence. On Linux,
 set `LD_LIBRARY_PATH` to the installed cuBLAS and cuDNN library directories
 before starting Python. CPU transcription does not require these GPU libraries.
 
@@ -106,12 +94,12 @@ file on your computer and upload it:
 
 ```powershell
 $audioFile = "C:\Path\To\recording.wav"
-curl.exe -X POST http://127.0.0.1:8000/transcribe -F "file=@$audioFile"
+curl.exe -X POST http://127.0.0.1:8000/transcribe -F "harm=@$audioFile"
 ```
 
-A successful request returns JSON such as `{"text":"Hello, this is a test."}`.
-The file is processed locally. Browser recording and upload integration are
-still being developed.
+A successful request returns JSON containing `text`, `segments`, and
+`transcription_info`. The file is processed locally. Browser recording uses
+this endpoint automatically.
 
 ## Run the browser tests
 
