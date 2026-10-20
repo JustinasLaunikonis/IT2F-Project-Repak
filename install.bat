@@ -68,7 +68,7 @@ if errorlevel 1 set "ollama=%localappdata%\programs\ollama\ollama.exe"
 "%ollama%" --version >nul 2>&1
 if not errorlevel 1 goto ollama_done
 
-echo downloading ollama. the installer is about 1.6 gb.
+echo downloading ollama. the installer is about 1.6 GB in size.
 echo this can take several minutes. keep this window open until the download finishes.
 powershell -noprofile -command "$erroractionpreference='stop'; $progresspreference='silentlycontinue'; invoke-webrequest -usebasicparsing 'https://ollama.com/download/OllamaSetup.exe' -outfile (join-path $env:temp 'ollamasetup.exe')"
 if errorlevel 1 goto ollama_fail
