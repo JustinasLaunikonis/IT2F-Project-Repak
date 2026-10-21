@@ -29,7 +29,7 @@ def calculate_wer(reference_text, transcribed_text):
 
     return wer(reference_text, transcribed_text) #compare the correct text with generated transcription
 
-def read_reference_transcript(reference_path):
+def read_reference_transcripts(reference_path):
     reference_parts = {
         "Operator": [],
         "Technician": [],
@@ -62,3 +62,44 @@ def read_reference_transcript(reference_path):
         references[speaker] = " ".join(reference_parts[speaker])
         
     return references
+
+def load_test_cases(calls_directory):
+    if not calls_directory.is_dir():
+        raise ValueError(
+            f"Test-call folder does not exist: {calls_directory}"
+        )
+
+    test_cases = []
+
+    for call_directory in sorted(calls_directory.iterdir()):
+        if not call_directory.is_dir():
+            continue
+        
+        reference_path = call_directory / "transcript.txt"
+        references = read_reference_transcripts(reference_path)
+
+        for audio_filename, speaker in AUDIO_SPEAKERS.items():
+            audio_path = call_directory / audio_filename
+
+            if not audio_path.is_file():
+                raise FileNotFoundError(
+                    f"Recording not found: {audio_path}"
+                )
+
+            reference_text = references[speaker]
+
+            if not normalize_text(reference_text):
+                raise ValueError(
+                    f"{reference_path}: no spoken words found "
+                    f"for {speaker}."
+                )
+
+            test_cases.append({
+                "audio_path": audio_path,
+                "reference_text": reference_text,
+            })
+
+    if not test_cases:
+        raise ValueError("No test calls were found.")
+
+    return test_cases
