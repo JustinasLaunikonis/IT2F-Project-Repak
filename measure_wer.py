@@ -146,3 +146,34 @@ def measure_accuracy(calls_directory):
 
     return results, average_wer
 
+def main():
+    default_directory = (
+        Path(__file__).resolve().parent / "test_calls"
+    )
+    
+    parser = argparse.ArgumentParser(
+        description="Measure WER for the scripted test calls."
+    )
+
+    parser.add_argument(
+        "calls_directory",
+        nargs="?",
+        type=Path,
+        default=default_directory,
+        help="Folder containing the individual test-call folders.",
+    )
+
+    arguments = parser.parse_args()
+
+    try:
+        measure_accuracy(arguments.calls_directory)
+    except (OSError, ValueError, RuntimeError) as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 1
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+
