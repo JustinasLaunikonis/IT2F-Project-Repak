@@ -82,30 +82,44 @@ def transcribe_audio_segments(audio_path):
 
     from faster_whisper import WhisperModel
 
-    requested_device = os.environ.get("WHISPER_DEVICE", "auto").strip().lower()
+    requested_device = os.environ.get(
+        "WHISPER_DEVICE", "auto"
+    ).strip().lower()
+
     if requested_device not in {"auto", "cuda", "cpu"}:
         raise ValueError("WHISPER_DEVICE must be auto, cuda, or cpu")
 
-    available_device = get_whisper_device() if requested_device != "cpu" else "cpu"
-    device = "cpu" if requested_device == "cpu" else available_device
+    if requested_device == "cpu":
+        device = "cpu"
+    else:
+        device = get_whisper_device()
+
     if device == "cpu" and requested_device != "cpu":
-        print("Warning: CUDA is unavailable; using the CPU model.", file=sys.stderr)
+        print(
+            "Warning: CUDA is unavailable; using the CPU model.",
+            file=sys.stderr,
+        )
 
     model_override = os.environ.get("WHISPER_MODEL", "").strip()
-    model_name = model_override or (GPU_MODEL if device == "cuda" else CPU_MODEL)
-    compute_type = "float16" if device == "cuda" else "int8"
+
+    if device == "cuda":
+        model_name = model_override or GPU_MODEL
+        compute_type = "float16"
+    else:
+        model_name = model_override or CPU_MODEL
+        compute_type = "int8"
 
     audio, speech_clips = find_speech(audio_path)
-    if len(speech_clips) == 0:
+
+    if not speech_clips:
         print(f"No speech found in: {audio_path}")
+
         return {
             "segments": [],
             "model": model_name,
             "device": device,
         }
 
-    # install.bat downloads models before transcription. Keep audio processing
-    # offline even if the requested model is missing from the local cache.
     try:
         model = WhisperModel(
             model_name,
@@ -116,10 +130,16 @@ def transcribe_audio_segments(audio_path):
     except (OSError, RuntimeError) as error:
         if device != "cuda":
             raise
-        print(f"Warning: CUDA model failed to load ({error}); using CPU.", file=sys.stderr)
+
+        print(
+            f"Warning: CUDA model failed to load ({error}); using CPU.",
+            file=sys.stderr,
+        )
+
         device = "cpu"
         model_name = model_override or CPU_MODEL
         compute_type = "int8"
+
         model = WhisperModel(
             model_name,
             device=device,
@@ -127,42 +147,62 @@ def transcribe_audio_segments(audio_path):
             local_files_only=True,
         )
 
-    print(f"Using Whisper model: {model_name}; device: {device}; compute type: {compute_type}")
+    print(
+        f"Using Whisper model: {model_name}; "
+        f"device: {device}; compute type: {compute_type}"
+    )
     print(f"Transcribing audio: {audio_path}")
 
     try:
-        language, language_probability = detect_speech_language(model, audio, speech_clips)
-        print(f"Detected language: {language}")
-        print(f"Confidence: {language_probability:.2f}")
+        # Use the chosen language, or detect it automatically.
+        language = os.environ.get(
+            "WHISPER_LANGUAGE", ""
+        ).strip().lower()
 
-        #Whisper expects a flat list: start1, end1, start2, end2, ...
+        if language:
+            print(f"Using selected language: {language}")
+        else:
+            language, language_probability = detect_speech_language(
+                model, audio, speech_clips
+            )
+            print(f"Detected language: {language}")
+            print(f"Confidence: {language_probability:.2f}")
+
         clip_timestamps = []
+
         for start, end in speech_clips:
             clip_timestamps.append(start)
             clip_timestamps.append(end)
-            
+
         segments, information = model.transcribe(
             audio,
             beam_size=5,
             language=language,
             clip_timestamps=clip_timestamps,
+            # Reduce the risk of repeating earlier generated text.
+            condition_on_previous_text=False,
         )
 
         transcription_segments = []
+
         for segment in segments:
-            print(f"[{segment.start:.2f}s -> {segment.end:.2f}s] {segment.text}")
+            print(
+                f"[{segment.start:.2f}s -> {segment.end:.2f}s] "
+                f"{segment.text}"
+            )
+
             transcription_segments.append({
                 "start": segment.start,
                 "end": segment.end,
                 "text": segment.text.strip(),
             })
+
         return {
             "segments": transcription_segments,
             "model": model_name,
             "device": device,
         }
     finally:
-        # Finish with Whisper before loading the report LLM into the same GPU.
         model.model.unload_model()
 
 

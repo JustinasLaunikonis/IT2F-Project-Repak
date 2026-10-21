@@ -10,8 +10,8 @@ from whisper_demo import transcribe_audio
 
 #match each recording to its speaker in transcript.txt
 AUDIO_SPEAKERS = {
-    "harm.wav": "Operator",
-    "caller.wav": "Technician",
+    "harm.wav": "Technician",
+    "caller.wav": "Operator",
 }
 
 def normalize_text(text):
