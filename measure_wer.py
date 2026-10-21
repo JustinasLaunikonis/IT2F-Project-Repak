@@ -103,3 +103,46 @@ def load_test_cases(calls_directory):
         raise ValueError("No test calls were found.")
 
     return test_cases
+
+def measure_accuracy(calls_directory):
+    test_cases = load_test_cases(calls_directory)
+    results = []
+
+    for test_case in test_cases:
+        audio_path = test_case["audio_path"]
+        reference_text = test_case["reference_text"]
+
+        print(
+            f"Transcribing "
+            f"{audio_path.parent.name}/{audio_path.name}..."
+        )
+
+        transcribed_text = transcribe_audio(str(audio_path))
+
+        error_rate = calculate_wer(
+            reference_text,
+            transcribed_text,
+        )
+
+        results.append({
+            "file": f"{audio_path.parent.name}/{audio_path.name}",
+            "wer": error_rate,
+        })
+
+    print("\nWER results")
+    print("-----------")
+
+    total_wer = 0.0
+
+    for result in results:
+        print(f"{result['file']}: {result['wer']:.2%}")
+        total_wer += result["wer"]
+
+    average_wer = total_wer / len(results)
+
+    print(
+        f"\nAverage WER (per-file mean): {average_wer:.2%}"
+    )
+
+    return results, average_wer
+
