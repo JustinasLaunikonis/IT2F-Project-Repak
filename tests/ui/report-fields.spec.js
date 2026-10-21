@@ -46,6 +46,28 @@ async function recordCall(page) {
     await expect(page.locator("#activity-status")).toHaveText("Activity: Completed");
 }
 
+test("shows total GPU VRAM and a recommendation beside the existing picker", async ({ page }) => {
+    await page.route("**/report-models", route => route.fulfill({
+        json: {
+            total_vram: 8,
+            recommended: "qwen3:4b",
+            default: "qwen3:4b",
+            models: [{ name: "qwen3:4b", memory: "~6 GB VRAM", installed: true }],
+        },
+    }));
+    await page.goto("/");
+    await expect(page.getByLabel("Interpretation model")).toHaveValue("qwen3:4b");
+    await expect(page.locator("#report-model-help")).toHaveText(
+        "Total GPU VRAM: 8.0 GB. Recommended model: qwen3:4b (1 GB reserved).",
+    );
+});
+
+test("keeps the picker usable when GPU VRAM is unknown", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("#report-model-help")).toContainText("GPU VRAM could not be detected");
+    await expect(page.getByLabel("Interpretation model")).toBeEnabled();
+});
+
 test("only empty fields are shown and Generate exports manual values", async ({ page }) => {
     let exports = 0;
     let submitted;
