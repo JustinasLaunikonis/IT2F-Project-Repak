@@ -58,7 +58,7 @@ test("shows total GPU VRAM and a recommendation beside the existing picker", asy
     await page.goto("/");
     await expect(page.getByLabel("Interpretation model")).toHaveValue("qwen3:4b");
     await expect(page.locator("#report-model-help")).toHaveText(
-        "Total GPU VRAM: 8.0 GB. Recommended model: qwen3:4b (1 GB reserved).",
+        "Total GPU VRAM: 8.0 GB. Recommended model: qwen3:4b (1 GB free for buffer).",
     );
 });
 
