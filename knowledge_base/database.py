@@ -29,6 +29,19 @@ SOURCE_TYPES = (
 )
 
 BLOCKED_SOURCE_TYPES = ("exported_report",)
+SAMPLE_SOURCE_TYPE = "synthetic_sample"
+SAMPLE_DOCUMENT_KEYS = (
+    "name",
+    "location",
+    "status",
+    "document_number",
+    "version",
+    "document_date",
+    "language",
+    "machine_types",
+    "components",
+    "passages",
+)
 DOCUMENT_STATUSES = ("concept", "final")
 SUBJECT_TYPES = ("machine_type", "component")
 KNOWLEDGE_BASE_FOLDER = Path(__file__).resolve().parent
@@ -369,40 +382,84 @@ def add_document(
     components=None,
 ):
     """Add a document with its machine types and components. Return the new id."""
-    clean_name = _require_text(name, "name")
-    clean_location = _require_text(location, "location")
+    clean_document = _check_document(
+        name,
+        location,
+        source_type,
+        status,
+        document_number,
+        version,
+        document_date,
+        language,
+        machine_types,
+        components,
+    )
+
+    with connection:
+        document_id = _insert_document(connection, clean_document)
+
+    return document_id
+
+
+def _check_document(
+    name,
+    location,
+    source_type,
+    status,
+    document_number,
+    version,
+    document_date,
+    language,
+    machine_types,
+    components,
+):
+    """Check and clean the fields of a new document. Return them as a dictionary.
+
+    Raises ValueError when a value is missing or invalid. Nothing is written.
+    """
+    clean_document = {}
+    clean_document["name"] = _require_text(name, "name")
+    clean_document["location"] = _require_text(location, "location")
     _validate_choice(source_type, SOURCE_TYPES, "source_type")
     _refuse_blocked_source_type(source_type)
     _validate_choice(status, DOCUMENT_STATUSES, "status")
-    clean_number = _optional_text(document_number, "document_number")
-    clean_version = _optional_text(version, "version")
-    clean_date = _clean_document_date(document_date)
-    clean_language = _clean_language(language)
-    clean_machine_types = _clean_subject_values(machine_types, "machine_types")
-    clean_components = _clean_subject_values(components, "components")
+    clean_document["source_type"] = source_type
+    clean_document["status"] = status
+    clean_document["document_number"] = _optional_text(document_number, "document_number")
+    clean_document["version"] = _optional_text(version, "version")
+    clean_document["document_date"] = _clean_document_date(document_date)
+    clean_document["language"] = _clean_language(language)
+    clean_document["machine_types"] = _clean_subject_values(machine_types, "machine_types")
+    clean_document["components"] = _clean_subject_values(components, "components")
+    return clean_document
+
+
+def _insert_document(connection, clean_document):
+    """Write a checked document and its subjects. Return the new id.
+
+    This does not commit. The caller must run it inside a "with connection:"
+    block, so the caller decides which writes belong to one transaction.
+    """
     added_at = _current_utc_time()
-
-    with connection:
-        cursor = connection.execute(
-            "INSERT INTO documents (name, document_number, version, document_date, "
-            "location, source_type, status, language, added_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                clean_name,
-                clean_number,
-                clean_version,
-                clean_date,
-                clean_location,
-                source_type,
-                status,
-                clean_language,
-                added_at,
-            ),
-        )
-        document_id = cursor.lastrowid
-        _insert_subjects(connection, document_id, "machine_type", clean_machine_types)
-        _insert_subjects(connection, document_id, "component", clean_components)
-
+    cursor = connection.execute(
+        "INSERT INTO documents (name, document_number, version, document_date, "
+        "location, source_type, status, language, added_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            clean_document["name"],
+            clean_document["document_number"],
+            clean_document["version"],
+            clean_document["document_date"],
+            clean_document["location"],
+            clean_document["source_type"],
+            clean_document["status"],
+            clean_document["language"],
+            added_at,
+        ),
+    )
+    document_id = cursor.lastrowid
+    _insert_subjects(connection, document_id, "machine_type", clean_document["machine_types"])
+    _insert_subjects(connection, document_id, "component", clean_document["components"])
     return document_id
 
 
@@ -421,19 +478,171 @@ def add_passage(connection, document_id, position, location_in_document, text):
     position is the order of the passage inside the document, starting at 0.
     location_in_document tells the reader where to look, for example 'page 12'.
     """
-    _validate_position(position)
-    clean_location = _require_text(location_in_document, "location_in_document")
-    clean_text = _require_text(text, "text")
+    clean_passage = _check_passage(position, location_in_document, text)
+
+    with connection:
+        passage_id = _insert_passage(connection, document_id, clean_passage)
+
+    return passage_id
+
+
+def _check_passage(position, location_in_document, text):
+    """Check and clean the fields of a new passage. Return them as a dictionary.
+
+    Raises ValueError when a value is missing or invalid. Nothing is written.
+    """
+    clean_passage = {}
+    clean_passage["position"] = _validate_position(position)
+    clean_passage["location_in_document"] = _require_text(
+        location_in_document, "location_in_document"
+    )
+    clean_passage["text"] = _require_text(text, "text")
+    return clean_passage
+
+
+def _insert_passage(connection, document_id, clean_passage):
+    """Write a checked passage. Return the new id.
+
+    This does not commit. The caller must run it inside a "with connection:" block.
+    """
+    cursor = connection.execute(
+        "INSERT INTO passages (document_id, position, location_in_document, text) "
+        "VALUES (?, ?, ?, ?)",
+        (
+            document_id,
+            clean_passage["position"],
+            clean_passage["location_in_document"],
+            clean_passage["text"],
+        ),
+    )
+    return cursor.lastrowid
+
+
+def replace_synthetic_samples(connection, documents):
+    """Replace all synthetic sample documents with new ones, all or nothing."""
+    if _is_autocommit(connection):
+        message = (
+            "replace_synthetic_samples needs a connection that is not in"
+            " autocommit mode, otherwise loading cannot be all or nothing."
+            " Use a connection from open_database."
+        )
+        raise ValueError(message)
+
+    checked_samples = check_sample_documents(documents)
+
+    removed_document_count = 0
+    document_count = 0
+    passage_count = 0
 
     with connection:
         cursor = connection.execute(
-            "INSERT INTO passages (document_id, position, location_in_document, text) "
-            "VALUES (?, ?, ?, ?)",
-            (document_id, position, clean_location, clean_text),
+            "DELETE FROM documents WHERE source_type = ?",
+            (SAMPLE_SOURCE_TYPE,),
         )
-        passage_id = cursor.lastrowid
+        removed_document_count = cursor.rowcount
 
-    return passage_id
+        for checked_sample in checked_samples:
+            document_id = _insert_document(connection, checked_sample["document"])
+            document_count = document_count + 1
+            for clean_passage in checked_sample["passages"]:
+                _insert_passage(connection, document_id, clean_passage)
+                passage_count = passage_count + 1
+
+    summary = {}
+    summary["removed_documents"] = removed_document_count
+    summary["documents"] = document_count
+    summary["passages"] = passage_count
+    return summary
+
+
+def _is_autocommit(connection):
+    """Return True when the connection saves every statement on its own."""
+    if connection.isolation_level is None:
+        return True
+
+    autocommit_setting = getattr(connection, "autocommit", False)
+    if autocommit_setting is True:
+        return True
+
+    return False
+
+
+def check_sample_documents(documents):
+    """Check every sample document and passage without writing anything."""
+    if documents is None or isinstance(documents, (str, dict)):
+        raise ValueError("documents must be a list of dictionaries.")
+
+    checked_samples = []
+    index = 0
+    for document in documents:
+        label = _describe_sample_document(document, index)
+        try:
+            checked_sample = _check_one_sample_document(document)
+        except ValueError as error:
+            raise ValueError("Sample document " + label + ": " + str(error))
+        checked_samples.append(checked_sample)
+        index = index + 1
+
+    return checked_samples
+
+
+def _describe_sample_document(document, index):
+    """Return a short name for a sample document to use in error messages."""
+    if isinstance(document, dict):
+        location = document.get("location")
+        if isinstance(location, str) and location.strip() != "":
+            return location.strip()
+    return "number " + str(index + 1)
+
+
+def _check_one_sample_document(document):
+    """Check one sample document dictionary and its passages."""
+    if not isinstance(document, dict):
+        raise ValueError("each document must be a dictionary.")
+
+    for key in document:
+        if key not in SAMPLE_DOCUMENT_KEYS:
+            raise ValueError("unknown key " + repr(key) + ".")
+
+    clean_document = _check_document(
+        document.get("name"),
+        document.get("location"),
+        SAMPLE_SOURCE_TYPE,
+        document.get("status"),
+        document.get("document_number"),
+        document.get("version"),
+        document.get("document_date"),
+        document.get("language"),
+        document.get("machine_types"),
+        document.get("components"),
+    )
+
+    passages = document.get("passages")
+    if passages is None:
+        raise ValueError("passages is missing or None.")
+    if isinstance(passages, (str, dict)):
+        raise ValueError("passages must be a list of dictionaries.")
+
+    clean_passages = []
+    used_positions = []
+    for passage in passages:
+        if not isinstance(passage, dict):
+            raise ValueError("each passage must be a dictionary.")
+        clean_passage = _check_passage(
+            passage.get("position"),
+            passage.get("location_in_document"),
+            passage.get("text"),
+        )
+        position = clean_passage["position"]
+        if position in used_positions:
+            raise ValueError("position " + str(position) + " is used twice.")
+        used_positions.append(position)
+        clean_passages.append(clean_passage)
+
+    checked_sample = {}
+    checked_sample["document"] = clean_document
+    checked_sample["passages"] = clean_passages
+    return checked_sample
 
 
 def _read_subjects(connection, document_id):
