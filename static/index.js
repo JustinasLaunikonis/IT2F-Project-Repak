@@ -185,38 +185,51 @@ function fillCallDate(date) {
 }
 
 async function fillReportFromTranscript(text) {
-    reportModelSelect.disabled = true;
-    try {
-        const response = await fetch("/extract-report", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                transcript: text,
-                model: reportModelSelect.value,
-            }),
-        });
-        if (!response.ok) {
-            throw new Error(
-                "Automatic filling failed. Complete the remaining details manually.",
-            );
-        }
-        const result = await response.json();
-        for (const [key, value] of Object.entries(result.fields)) {
-            // Keep anything Harm has already entered for this call.
-            if (
-                Object.hasOwn(callDetails, key) &&
-                typeof value === "string" &&
-                !callDetails[key].trim()
-            ) {
-                callDetails[key] = value;
-            }
-        }
-        return result.warning;
-    } catch (error) {
-        return "Automatic filling is unavailable. Complete the remaining details manually.";
-    } finally {
-        reportModelSelect.disabled = false;
+    const selectedModel = reportModelSelect.value;
+
+    if (selectedModel === "none") {
+        return "Automatic filling is off. Complete the details manually";
     }
+
+    const response = await fetch("/extract-report", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            transcript: text,
+            model: selectedModel,
+        }),
+    });
+
+    if (!response.ok) {
+        throw new Error("The report could not be filled. Please try again.");
+    }
+
+    const result = await response.json();
+
+    if (result.mode === "manual") {
+        throw new Error(
+            result.warning ||
+                "The report could not be filled. Please try again",
+        );
+    }
+
+    for (const [key, value] of Object.entries(result.fields)) {
+        if (!Object.hasOwn(callDetails, key)) {
+            continue;
+        }
+
+        if (typeof value !== "string") {
+            continue;
+        }
+
+        if (callDetails[key].trim() === "") {
+            callDetails[key] = value;
+        }
+    }
+
+    return result.warning ?? null;
 }
 
 async function submitCallData() {
