@@ -75,7 +75,20 @@ test("only empty fields are shown and Generate exports manual values", async ({ 
     const modelSelect = page.getByLabel("Interpretation model");
     await expect(modelSelect).toHaveValue("qwen3:4b");
     await expect(modelSelect.locator('option[value="qwen3:1.7b"]')).toHaveText("qwen3:1.7b — ~4 GB VRAM");
-    await expect(modelSelect.locator('option[value="qwen3:8b"]')).toBeDisabled();
+    const downloadModel = page.getByRole("button", { name: "Download model", exact: true });
+    await expect(downloadModel).toBeHidden();
+    await modelSelect.selectOption("qwen3:8b");
+    await expect(downloadModel).toBeVisible();
+    await page.route("**/report-models/download?model=qwen3%3A8b", route => route.fulfill({
+        json: { status: "started" },
+    }));
+    page.once("dialog", async dialog => {
+        expect(dialog.message()).toContain("Refresh the page after a few minutes");
+        await dialog.accept();
+    });
+    await downloadModel.click();
+    await expect(modelSelect).toHaveValue("qwen3:8b");
+    await expect(modelSelect.locator('option[value="qwen3:8b"]')).toContainText("not installed");
     await modelSelect.selectOption("qwen3:1.7b");
     await recordCall(page);
 

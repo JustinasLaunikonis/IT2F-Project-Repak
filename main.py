@@ -1,6 +1,7 @@
 import logging
 import os
 import shutil
+import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Literal
@@ -174,6 +175,14 @@ def list_report_models():
         ],
         "default": default,
     }
+
+
+@app.post("/report-models/download")
+def download_report_model(model: str):
+    if model not in report_models:
+        raise HTTPException(status_code=400, detail="Unknown interpretation model.")
+    subprocess.Popen(["ollama", "pull", model])
+    return {"status": "started"}
 
 
 class ExtractReportRequest(BaseModel):

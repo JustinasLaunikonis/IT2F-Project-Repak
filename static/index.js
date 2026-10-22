@@ -32,6 +32,7 @@ const missingDetailsSubmitButton = document.getElementById(
 
 const microphoneSelect = document.getElementById("microphone-select");
 const reportModelSelect = document.getElementById("report-model-select");
+const downloadModelButton = document.getElementById("download-report-model");
 const microphoneMessage = document.getElementById("microphone-message");
 const listMicrophonesButton = document.getElementById(
     "list-microphones-button",
@@ -54,7 +55,7 @@ async function loadReportModels() {
             const option = document.createElement("option");
             option.value = model.name;
             option.textContent = `${model.name} — ${model.memory}${model.installed ? "" : " (not installed)"}`;
-            option.disabled = !model.installed;
+            option.dataset.installed = model.installed;
             reportModelSelect.appendChild(option);
         }
         reportModelSelect.value = result.default;
@@ -66,6 +67,19 @@ async function loadReportModels() {
 }
 
 loadReportModels();
+
+function showModelDownload() {
+    downloadModelButton.hidden = reportModelSelect.selectedOptions[0].dataset.installed !== "false";
+}
+
+reportModelSelect.addEventListener("change", showModelDownload);
+
+downloadModelButton.addEventListener("click", async function () {
+    await fetch(`/report-models/download?model=${encodeURIComponent(reportModelSelect.value)}`, {
+        method: "POST",
+    });
+    alert("Refresh the page after a few minutes to see whether the model downloaded successfully.");
+});
 
 const jsonStringTemplate = `{
     "[machinenummer]": "",
