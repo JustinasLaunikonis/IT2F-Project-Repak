@@ -232,10 +232,100 @@ async function fillReportFromTranscript(text) {
     return result.warning ?? null;
 }
 
-async function submitCallData() {
-    if (recordingSessionActive) {
+async function processSavedRecording() {
+    if (processingCall || recordingSessionActive || savedRecording === null) {
         return;
     }
+
+    processingCall = true;
+    updateRetryButton();
+
+    startButton.disabled = true;
+    stopButton.disabled = true;
+    missingDetailsSubmitButton.disabled = true;
+    reportModelSelect.disabled = true;
+    includeCaller.disabled = true;
+    microphoneSelect.disabled = true;
+    listMicrophonesButton.disabled = true;
+
+    showState("processing");
+
+    try {
+        //only transcribe if this recording has no saved transcript yet
+        if (savedTranscript === null) {
+            retryStep = "transcription";
+            activityMessage.textContent = "Transcribing the saved recording.";
+
+            const result = await transcribeRecording(savedRecording);
+
+            savedTranscript = result.text;
+            transcript.value = result.text;
+            callDetails["[transcriptie]"] = result.text;
+
+            showTranscriptionInfo(result.transcription_info);
+        }
+
+        retryStep = "report";
+
+        let message =
+            "Call processed. Fill in any remaining details, then click Generate.";
+
+        if (savedTranscript.trim() === "") {
+            message =
+                "No speech was transcribed. Complete the report manually.";
+        } else {
+            activityMessage.textContent =
+                "Filling the report using the saved transcript.";
+
+            const warning = await fillReportFromTranscript(savedTranscript);
+
+            if (warning !== null) {
+                message = warning;
+            }
+        }
+
+        //processing succeeded, so retry is no longer needed
+        retryStep = null;
+
+        showState("completed");
+        activityMessage.textContent = message;
+    } catch (error) {
+        let message;
+
+        if (retryStep === "transcription") {
+            message =
+                "Transcription failed. Your recording is still available. " +
+                "Click Retry transcription.";
+        } else {
+            message =
+                "The report could not be filled. Your recording and " +
+                "transcript are still available. Click Retry filling report.";
+        }
+
+        showError(message + " " + error.message);
+    } finally {
+        showMissingDetails();
+
+        processingCall = false;
+        resetRecordingControls();
+        reportModelSelect.disabled = false;
+
+        updateRetryButton();
+    }
+}
+
+retryButton.addEventListener("click", async function () {
+    await processSavedRecording();
+});
+
+async function submitCallData() {
+    if (recordingSessionActive || processingCall) {
+        return;
+    }
+
+    processingCall = true;
+    updateRetryButton();
+
     missingDetailsSubmitButton.disabled = true;
     startButton.disabled = true;
 
@@ -270,8 +360,10 @@ async function submitCallData() {
     } catch (error) {
         alert(error.message);
     } finally {
+        processingCall = false;
         missingDetailsSubmitButton.disabled = false;
         startButton.disabled = false;
+        updateRetryButton();
     }
 }
 
@@ -330,7 +422,8 @@ async function transcribeRecording(files) {
     } catch {
         //fetch only throws when the request never reached the server
         throw new Error(
-            "The recording could not be uploaded. Check that the server is running and press Start again.",
+            "The recording could not be uploaded. " +
+                "Check if the server is running, then click Retry transcription.",
         );
     }
 
@@ -404,6 +497,8 @@ function resetRecordingControls() {
 
     microphoneSelect.disabled = false;
     listMicrophonesButton.disabled = false;
+
+    updateRetryButton();
 }
 
 function showError(message) {
@@ -417,12 +512,21 @@ function handleUnexpectedStop(error, files) {
 
     if (error !== null) {
         showError(error.message);
-    } else {
-        showRecordingReview(files);
-        showState("idle");
-        activityMessage.textContent =
-            "An audio source disconnected. Review the available recording before downloading.";
+        return;
     }
+
+    savedRecording = files;
+    savedTranscript = null;
+    retryStep = "transcription";
+
+    showRecordingReview(files);
+
+    showError(
+        "An audio source disconnected. Review the available recording, " +
+            "then click Retry transcription to process it",
+    );
+
+    updateRetryButton();
 }
 
 window.addEventListener("pagehide", clearRecordingReview);
@@ -483,7 +587,7 @@ testErrorButton.addEventListener("click", function () {
 
 // Start capture after the user allows access to the selected audio sources.
 startButton.addEventListener("click", async function () {
-    if (recordingSessionActive === true) {
+    if (recordingSessionActive || processingCall) {
         return;
     }
 
@@ -494,11 +598,23 @@ startButton.addEventListener("click", async function () {
         return;
     }
 
+    //ask before replacing the previous recording
+    if (savedRecording !== null) {
+        const replaceRecording = window.confirm(
+            "Starting a new recording replaces the saved call. " +
+                "Download current audio first if you want to keep it. " +
+                "Continue?",
+        );
+
+        if (!replaceRecording) {
+            return;
+        }
+    }
+
     recordingSessionActive = true;
     stopRequested = false;
+    updateRetryButton();
     missingDetailsSubmitButton.disabled = true;
-    clearRecordingReview();
-    clearTranscriptionInfo();
 
     startButton.disabled = true;
     stopButton.disabled = true;
@@ -522,11 +638,21 @@ startButton.addEventListener("click", async function () {
             selectedMicrophoneId,
         );
 
+        //clear the previous call only afrer when recording starts
+        savedRecording = null;
+        savedTranscript = null;
+        retryStep = null;
+
+        clearRecordingReview();
+        clearTranscriptionInfo();
+        updateRetryButton();
+
         if (recordingStartedAt !== null) {
             // Each new recording gets its own report, not values from the previous call.
             Object.assign(callDetails, JSON.parse(jsonStringTemplate));
             transcript.value = "";
         }
+
         recordingStartedAt = new Date();
         fillCallDate(recordingStartedAt);
         showMissingDetails();
@@ -538,13 +664,18 @@ startButton.addEventListener("click", async function () {
         showState("recording");
     } catch (error) {
         resetRecordingControls();
+        updateRetryButton();
         showError(error.message);
     }
 });
 
 // Stop capture and let the user review audio before choosing to download it.
 stopButton.addEventListener("click", async function () {
-    if (recordingSessionActive === false || stopRequested === true) {
+    if (
+        recordingSessionActive === false ||
+        stopRequested === true ||
+        processingCall
+    ) {
         return;
     }
 
@@ -558,30 +689,19 @@ stopButton.addEventListener("click", async function () {
         //stop recording and create the wav audio
         const files = await stopWavRecording();
 
+        //keep the audio before sending it to the server
+        savedRecording = files;
+        savedTranscript = null;
+        retryStep = "transcription";
+
         showRecordingReview(files);
-
-        const transcriptionResult = await transcribeRecording(files); // upload both recordings and receive4 the combined transcript
-
-        transcript.value = transcriptionResult.text;
-        showTranscriptionInfo(transcriptionResult.transcription_info);
-
-        callDetails["[transcriptie]"] = transcriptionResult.text;
-        const warning = transcriptionResult.text.trim()
-            ? await fillReportFromTranscript(transcriptionResult.text)
-            : "No speech was transcribed. Complete the report manually.";
-        showMissingDetails();
-
         resetRecordingControls();
 
-        showState("completed");
-        activityMessage.textContent =
-            warning ??
-            "Call processed. Fill in any remaining details, then click Generate.";
+        await processSavedRecording();
     } catch (error) {
-        //reset the interface if recording cant be stopped or transcribed
-        clearTranscriptionInfo();
         resetRecordingControls();
         showError(error.message);
+        updateRetryButton();
     }
 });
 
