@@ -1,0 +1,11 @@
+Operator: Hello, our packaging machine is wrapping empty space.
+
+Technician: Does it start before the product arrives?
+
+Operator: Yes. It makes perfect packages with nothing inside.
+
+Technician: Please clean the product sensor and restart the machine.
+
+Operator: It is waiting for products now.
+
+Technician: Great. The dirty sensor was detecting products that were not there.

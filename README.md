@@ -93,21 +93,40 @@ The `test_calls` directory contains five short synthetic English service calls f
 
 All conversations are fictional. They contain no real customer audio or customer information.
 
-| Call | Machine problem |
-| --- | --- |
-| Call 01 | Conveyor belt moves backwards |
+| Call    | Machine problem                              |
+| ------- | -------------------------------------------- |
+| Call 01 | Conveyor belt moves backwards                |
 | Call 02 | Label printer keeps printing the word banana |
-| Call 03 | Robot arm waves instead of picking up boxes |
-| Call 04 | Packaging machine wraps empty space |
-| Call 05 | Coffee machine makes coffee without a cup |
+| Call 03 | Robot arm waves instead of picking up boxes  |
+| Call 04 | Packaging machine wraps empty space          |
+| Call 05 | Coffee machine makes coffee without a cup    |
 
 Each call directory contains:
 
-- `harm.wav`: the Operator's microphone recording.
-- `caller.wav`: the Technician's caller-audio recording.
+- `harm.wav`: Harm's recording (Technician).
+- `caller.wav`: the customer's recording (Operator).
 - `transcript.txt`: the exact scripted conversation for both speakers.
 
 The recordings are mono, 16-bit PCM WAV files at 16 kHz.
+
+## Measure transcription errors
+
+Run these commands in PowerShell from the project folder:
+
+```powershell
+$env:WHISPER_DEVICE = "cpu"
+$env:WHISPER_LANGUAGE = "en"
+.\.venv\Scripts\python.exe measure_wer.py
+```
+
+The script compares each recording's transcription with its speaker's
+reference text. It prints the word error rate (WER) for each recording
+and the average across all recordings.
+
+Capitals, punctuation and extra spaces are ignored.
+Lower WER means fewer errors. Each recording has equal weight in the average.
+The current transcription settings disable previous-text conditioning
+to reduce repetition.
 
 ## Contributing through pull requests
 
@@ -116,7 +135,6 @@ All changes to `main` must go through a pull request (PR). Reviewer approvals ar
 Each feature should have its own branch and subsequently a pull request.
 
 Branches allow normal commits and pushes. Work on a separate branch, push it, and open a PR targeting `main`. Merge that PR on GitHub. **DO NOT** merge locally into `main` and try to push it directly.
-
 
 ### 1. Update main, then create and check out a branch
 
@@ -153,6 +171,7 @@ git commit -m "document the pull request contribution workflow"
 # Upload this branch to GitHub. -u remembers its remote branch for future git push commands.
 git push -u origin docs/update-contribution-guide
 ```
+
 For later commits on this branch, repeat the review and commit steps, then run `git push`.
 
 ### 3. Open and merge the pull request
@@ -161,7 +180,6 @@ For later commits on this branch, repeat the review and commit steps, then run `
 2. Choose `main` as the base and `docs/update-contribution-guide` as the compare branch.
 3. Review the changes, describe what changed and how you checked it, then create the PR.
 4. Resolve any conflicts and address feedback. When the PR is ready, use GitHub merge button and confirm the merge.
-
 
 Alternatively, install the GitHub CLI (`gh`) and run these commands from the repository directory. If you have not authenticated yet, sign in first:
 

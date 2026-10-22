@@ -90,16 +90,29 @@ def _transcribe_with_model(audio_path, audio, speech_clips, model_name, device, 
         local_files_only=True,
     )
 
-    print(f"Using Whisper model: {model_name}; device: {device}; compute type: {compute_type}")
+    print(
+        f"Using Whisper model: {model_name}; "
+        f"device: {device}; compute type: {compute_type}"
+    )
     print(f"Transcribing audio: {audio_path}")
 
     try:
-        language, language_probability = detect_speech_language(model, audio, speech_clips)
-        print(f"Detected language: {language}")
-        print(f"Confidence: {language_probability:.2f}")
+        # Use the chosen language, or detect it automatically.
+        language = os.environ.get(
+            "WHISPER_LANGUAGE", ""
+        ).strip().lower()
 
-        #Whisper expects a flat list: start1, end1, start2, end2, ...
+        if language:
+            print(f"Using selected language: {language}")
+        else:
+            language, language_probability = detect_speech_language(
+                model, audio, speech_clips
+            )
+            print(f"Detected language: {language}")
+            print(f"Confidence: {language_probability:.2f}")
+
         clip_timestamps = []
+
         for start, end in speech_clips:
             clip_timestamps.append(start)
             clip_timestamps.append(end)
@@ -109,23 +122,30 @@ def _transcribe_with_model(audio_path, audio, speech_clips, model_name, device, 
             beam_size=5,
             language=language,
             clip_timestamps=clip_timestamps,
+            # Reduce the risk of repeating earlier generated text.
+            condition_on_previous_text=False,
         )
 
         transcription_segments = []
+
         for segment in segments:
-            print(f"[{segment.start:.2f}s -> {segment.end:.2f}s] {segment.text}")
+            print(
+                f"[{segment.start:.2f}s -> {segment.end:.2f}s] "
+                f"{segment.text}"
+            )
+
             transcription_segments.append({
                 "start": segment.start,
                 "end": segment.end,
                 "text": segment.text.strip(),
             })
+
         return {
             "segments": transcription_segments,
             "model": model_name,
             "device": device,
         }
     finally:
-        # Finish with Whisper before loading the report LLM into the same GPU.
         model.model.unload_model()
 
 
