@@ -2,7 +2,7 @@
 
 ## Set up and run on Windows
 
-1. Install [Python 3.10 or newer](https://www.python.org/downloads/windows/). During installation, select **Add python.exe to PATH**.
+1. Install [Python 3.11 or newer](https://www.python.org/downloads/windows/). During installation, select **Add python.exe to PATH**.
 2. Download this project and unzip it to a folder on this computer. Keep all project files together.
 3. With an internet connection, double-click `install.bat` in that folder. It creates a private Python environment, installs the required packages, and downloads the Whisper model. If CUDA is detected, it also downloads the smaller CPU model in case GPU loading fails. The first installation can take several minutes and requires space for the packages and models. Wait for **Installation completed successfully**.
 4. Install [Ollama](https://ollama.com/download) and leave it running.
@@ -21,7 +21,7 @@ For later runs, use only `run.bat`. If installation stops with an error, read th
 Complete these one-time downloads while the computer is connected to the
 internet:
 
-1. Install Python 3.10 or newer.
+1. Install Python 3.11 or newer.
 2. Download and unzip this project.
 3. Run `install.bat`. It creates `.venv`, installs the Python packages from
    `requirements.txt`, and stores the Whisper model in the local Hugging Face
