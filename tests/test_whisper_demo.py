@@ -74,6 +74,8 @@ def test_transcription_uses_local_model_and_prints_segments(
 
     monkeypatch.delenv("WHISPER_DEVICE", raising=False)
     monkeypatch.delenv("WHISPER_MODEL", raising=False)
+    monkeypatch.delenv("WHISPER_LANGUAGE", raising=False)
+
     calls = []
     fake_whisper = types.ModuleType("faster_whisper")
 
@@ -86,7 +88,8 @@ def test_transcription_uses_local_model_and_prints_segments(
             calls.append(("detect_language", len(audio)))
             return "en", 0.75, [("en", 0.75)]
 
-        def transcribe(self, audio, beam_size, language, clip_timestamps):
+        def transcribe(self, audio, beam_size, language, clip_timestamps, condition_on_previous_text):
+            assert condition_on_previous_text is False
             calls.append(("transcribe", beam_size, language, clip_timestamps))
             first_segment = types.SimpleNamespace(start=0.0, end=1.25, text="synthetic test")
             second_segment = types.SimpleNamespace(start=1.25, end=2.0, text="part two")
@@ -349,8 +352,8 @@ def test_speech_is_found_where_each_speaker_talks():
     harm_starts = [start for start, end in harm_clips]
     caller_starts = [start for start, end in caller_clips]
 
-    assert harm_starts == pytest.approx([11.4, 20.1, 28.0], abs=0.5)
-    assert caller_starts == pytest.approx([16.5, 24.8, 31.2], abs=0.5)
+    assert caller_starts == pytest.approx([11.4, 20.1, 28.0], abs=0.5)
+    assert harm_starts == pytest.approx([16.5, 24.8, 31.2], abs=0.5)
     assert len(harm_audio) == len(caller_audio)
 
 

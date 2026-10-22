@@ -4,13 +4,14 @@
 
 1. Install [Python 3.10 or newer](https://www.python.org/downloads/windows/). During installation, select **Add python.exe to PATH**.
 2. Download this project and unzip it to a folder on this computer. Keep all project files together.
-3. With an internet connection, double-click `install.bat` in that folder. It creates a private Python environment, installs the required packages, and downloads the Whisper model. If CUDA is detected, it also downloads the smaller CPU model in case GPU loading fails. The first installation can take several minutes and requires space for the packages and models. Wait for **Installation completed successfully**. 
+3. With an internet connection, double-click `install.bat` in that folder. It creates a private Python environment, installs the required packages, and downloads the Whisper model. If CUDA is detected, it also downloads the smaller CPU model in case GPU loading fails. The first installation can take several minutes and requires space for the packages and models. Wait for **Installation completed successfully**.
 4. Install [Ollama](https://ollama.com/download) and leave it running.
 5. Open PowerShell in the project folder and download the report model:
 
-   ```powershell
-   ollama pull qwen3:4b
-   ```
+    ```powershell
+    ollama pull qwen3:4b
+    ```
+
 6. Double-click `run.bat`. Leave its window open. Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in a browser on the same computer. Press **Ctrl+C** in the window to stop the application.
 
 For later runs, use only `run.bat`. If installation stops with an error, read the message in its window and run `install.bat` again after fixing the problem. The model download needs internet during installation; audio processing is local. The current browser page is a local application preview. The full recording and transcription flow is still being developed.
@@ -48,10 +49,10 @@ missing model during transcription.
    was enabled.
 4. In PowerShell, transcribe each downloaded recording locally:
 
-   ```powershell
-   .\.venv\Scripts\python.exe whisper_demo.py "C:\path\to\harm.wav"
-   .\.venv\Scripts\python.exe whisper_demo.py "C:\path\to\caller.wav"
-   ```
+    ```powershell
+    .\.venv\Scripts\python.exe whisper_demo.py "C:\path\to\harm.wav"
+    .\.venv\Scripts\python.exe whisper_demo.py "C:\path\to\caller.wav"
+    ```
 
 5. Copy the transcript into the **transcriptie** field in the browser, fill in
    the other required call details, and save the generated DOCX report.
@@ -148,21 +149,40 @@ The `test_calls` directory contains five short synthetic English service calls f
 
 All conversations are fictional. They contain no real customer audio or customer information.
 
-| Call | Machine problem |
-| --- | --- |
-| Call 01 | Conveyor belt moves backwards |
+| Call    | Machine problem                              |
+| ------- | -------------------------------------------- |
+| Call 01 | Conveyor belt moves backwards                |
 | Call 02 | Label printer keeps printing the word banana |
-| Call 03 | Robot arm waves instead of picking up boxes |
-| Call 04 | Packaging machine wraps empty space |
-| Call 05 | Coffee machine makes coffee without a cup |
+| Call 03 | Robot arm waves instead of picking up boxes  |
+| Call 04 | Packaging machine wraps empty space          |
+| Call 05 | Coffee machine makes coffee without a cup    |
 
 Each call directory contains:
 
-- `harm.wav`: the Operator's microphone recording.
-- `caller.wav`: the Technician's caller-audio recording.
+- `harm.wav`: Harm's recording (Technician).
+- `caller.wav`: the customer's recording (Operator).
 - `transcript.txt`: the exact scripted conversation for both speakers.
 
 The recordings are mono, 16-bit PCM WAV files at 16 kHz.
+
+## Measure transcription errors
+
+Run these commands in PowerShell from the project folder:
+
+```powershell
+$env:WHISPER_DEVICE = "cpu"
+$env:WHISPER_LANGUAGE = "en"
+.\.venv\Scripts\python.exe measure_wer.py
+```
+
+The script compares each recording's transcription with its speaker's
+reference text. It prints the word error rate (WER) for each recording
+and the average across all recordings.
+
+Capitals, punctuation and extra spaces are ignored.
+Lower WER means fewer errors. Each recording has equal weight in the average.
+The current transcription settings disable previous-text conditioning
+to reduce repetition.
 
 ## Contributing through pull requests
 
@@ -171,7 +191,6 @@ All changes to `main` must go through a pull request (PR). Reviewer approvals ar
 Each feature should have its own branch and subsequently a pull request.
 
 Branches allow normal commits and pushes. Work on a separate branch, push it, and open a PR targeting `main`. Merge that PR on GitHub. **DO NOT** merge locally into `main` and try to push it directly.
-
 
 ### 1. Update main, then create and check out a branch
 
@@ -208,6 +227,7 @@ git commit -m "document the pull request contribution workflow"
 # Upload this branch to GitHub. -u remembers its remote branch for future git push commands.
 git push -u origin docs/update-contribution-guide
 ```
+
 For later commits on this branch, repeat the review and commit steps, then run `git push`.
 
 ### 3. Open and merge the pull request
@@ -216,7 +236,6 @@ For later commits on this branch, repeat the review and commit steps, then run `
 2. Choose `main` as the base and `docs/update-contribution-guide` as the compare branch.
 3. Review the changes, describe what changed and how you checked it, then create the PR.
 4. Resolve any conflicts and address feedback. When the PR is ready, use GitHub merge button and confirm the merge.
-
 
 Alternatively, install the GitHub CLI (`gh`) and run these commands from the repository directory. If you have not authenticated yet, sign in first:
 
