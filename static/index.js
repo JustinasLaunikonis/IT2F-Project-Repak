@@ -50,6 +50,21 @@ let savedTranscript = null;
 let retryStep = null;
 let processingCall = false; //prevents processing the same call more than once at the time
 
+function updateRetryButton() {
+    const canRetry = savedRecording !== null && retryStep !== null;
+
+    retryButton.hidden = !canRetry;
+
+    //dont allow retry while recording or processing
+    retryButton.disabled = processingCall || recordingSessionActive;
+
+    if (retryStep === "transcription") {
+        retryButton.textContent = "Retry transcription";
+    } else if (retryStep === "report") {
+        retryButton.textContent = "Retry filling report";
+    }
+}
+
 async function loadReportModels() {
     try {
         const response = await fetch("/report-models");
