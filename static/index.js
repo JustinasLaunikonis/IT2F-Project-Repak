@@ -10,6 +10,7 @@ const transcriptionInfo = document.getElementById("transcription-info");
 
 const startButton = document.getElementById("start-button");
 const stopButton = document.getElementById("stop-button");
+const retryButton = document.getElementById("retry-button");
 
 const stateTester = document.querySelector(".state-tester");
 const testIdleButton = document.getElementById("test-idle");
@@ -44,6 +45,10 @@ let callerUrl = null;
 let recordingSessionActive = false; //prevents second recording session from being started
 let stopRequested = false; //prevents stop from being requested more than once
 let recordingStartedAt = null;
+let savedRecording = null;
+let savedTranscript = null;
+let retryStep = null;
+let processingCall = false; //prevents processing the same call more than once at the time
 
 async function loadReportModels() {
     try {
@@ -156,7 +161,10 @@ showMissingDetails();
 
 function fillCallDate(date) {
     const day = date.toLocaleDateString("en-GB").replaceAll("/", "-");
-    const time = date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    const time = date.toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+    });
     callDetails["[datum]"] = day;
     callDetails["[datum / tijd]"] = `${day} / ${time}`;
 }
@@ -167,15 +175,24 @@ async function fillReportFromTranscript(text) {
         const response = await fetch("/extract-report", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ transcript: text, model: reportModelSelect.value }),
+            body: JSON.stringify({
+                transcript: text,
+                model: reportModelSelect.value,
+            }),
         });
         if (!response.ok) {
-            throw new Error("Automatic filling failed. Complete the remaining details manually.");
+            throw new Error(
+                "Automatic filling failed. Complete the remaining details manually.",
+            );
         }
         const result = await response.json();
         for (const [key, value] of Object.entries(result.fields)) {
             // Keep anything Harm has already entered for this call.
-            if (Object.hasOwn(callDetails, key) && typeof value === "string" && !callDetails[key].trim()) {
+            if (
+                Object.hasOwn(callDetails, key) &&
+                typeof value === "string" &&
+                !callDetails[key].trim()
+            ) {
                 callDetails[key] = value;
             }
         }
@@ -303,8 +320,7 @@ function showTranscriptionInfo(info) {
     const lines = [];
 
     for (const [speaker, details] of channels) {
-        const deviceLabel =
-            details.device === "cuda" ? "GPU (CUDA)" : "CPU";
+        const deviceLabel = details.device === "cuda" ? "GPU (CUDA)" : "CPU";
         const modelLabel =
             details.model.charAt(0).toUpperCase() + details.model.slice(1);
         const channelLabel = showChannelNames ? `${speaker}: ` : "";
@@ -312,8 +328,7 @@ function showTranscriptionInfo(info) {
         lines.push(`${channelLabel}${deviceLabel}, Size: ${modelLabel}`);
     }
 
-    transcriptionInfo.textContent =
-        `Transcription Model Info: ${lines.join(" | ")}`;
+    transcriptionInfo.textContent = `Transcription Model Info: ${lines.join(" | ")}`;
     transcriptionInfo.hidden = false;
 }
 
@@ -532,7 +547,8 @@ stopButton.addEventListener("click", async function () {
 
         showState("completed");
         activityMessage.textContent =
-            warning ?? "Call processed. Fill in any remaining details, then click Generate.";
+            warning ??
+            "Call processed. Fill in any remaining details, then click Generate.";
     } catch (error) {
         //reset the interface if recording cant be stopped or transcribed
         clearTranscriptionInfo();
