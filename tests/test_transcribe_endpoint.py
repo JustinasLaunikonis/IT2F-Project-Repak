@@ -1,9 +1,44 @@
+import io
+import wave
+
+import pytest
 from fastapi.testclient import TestClient
 
 import main
 
 
 client = TestClient(main.app)
+
+
+@pytest.mark.parametrize("sample_rate", [16000, 44100, 48000])
+@pytest.mark.parametrize("include_caller", [False, True])
+def test_real_wav_decoding_without_a_whisper_model(monkeypatch, sample_rate, include_caller):
+    # Exercise the installed Faster Whisper/PyAV decoder rather than mocking it.
+    # Silence keeps this regression independent of model downloads and GPU hardware.
+    monkeypatch.setenv("WHISPER_DEVICE", "cpu")
+    monkeypatch.delenv("WHISPER_MODEL", raising=False)
+    recording = io.BytesIO()
+    with wave.open(recording, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        wav.writeframes(b"\x00\x00" * sample_rate)
+
+    files = {"harm": ("harm.wav", recording.getvalue(), "audio/wav")}
+    if include_caller:
+        files["caller"] = ("caller.wav", recording.getvalue(), "audio/wav")
+
+    response = client.post("/transcribe", files=files)
+
+    assert response.status_code == 200, response.text
+    speakers = ["Harm", "Caller"] if include_caller else ["Harm"]
+    assert response.json() == {
+        "segments": [],
+        "text": "",
+        "transcription_info": {
+            speaker: {"model": "small", "device": "cpu"} for speaker in speakers
+        },
+    }
 
 
 def test_wav_upload_return_speaker_transcript(monkeypatch):

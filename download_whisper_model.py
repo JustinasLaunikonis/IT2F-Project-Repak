@@ -23,7 +23,7 @@ def models_to_download():
 
     available_device = get_whisper_device()
     if available_device == "cuda":
-        # The CPU model is also needed if CUDA fails when loading a model.
+        # The CPU model is also needed if CUDA fails during loading or inference.
         return [GPU_MODEL, CPU_MODEL]
 
     return [CPU_MODEL]

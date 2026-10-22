@@ -19,6 +19,7 @@ def configure_windows_cuda_paths():
     library_directories = [
         site_packages / "nvidia" / "cublas" / "bin",
         site_packages / "nvidia" / "cudnn" / "bin",
+        site_packages / "nvidia" / "cuda_runtime" / "bin",
         site_packages / "nvidia" / "cuda_nvrtc" / "bin",
     ]
 
@@ -77,75 +78,17 @@ def detect_speech_language(model, audio, speech_clips):
     return language, language_probability
 
 
-def transcribe_audio_segments(audio_path):
-    configure_windows_cuda_paths()
-
+def _transcribe_with_model(audio_path, audio, speech_clips, model_name, device, compute_type):
     from faster_whisper import WhisperModel
 
-    requested_device = os.environ.get(
-        "WHISPER_DEVICE", "auto"
-    ).strip().lower()
-
-    if requested_device not in {"auto", "cuda", "cpu"}:
-        raise ValueError("WHISPER_DEVICE must be auto, cuda, or cpu")
-
-    if requested_device == "cpu":
-        device = "cpu"
-    else:
-        device = get_whisper_device()
-
-    if device == "cpu" and requested_device != "cpu":
-        print(
-            "Warning: CUDA is unavailable; using the CPU model.",
-            file=sys.stderr,
-        )
-
-    model_override = os.environ.get("WHISPER_MODEL", "").strip()
-
-    if device == "cuda":
-        model_name = model_override or GPU_MODEL
-        compute_type = "float16"
-    else:
-        model_name = model_override or CPU_MODEL
-        compute_type = "int8"
-
-    audio, speech_clips = find_speech(audio_path)
-
-    if not speech_clips:
-        print(f"No speech found in: {audio_path}")
-
-        return {
-            "segments": [],
-            "model": model_name,
-            "device": device,
-        }
-
-    try:
-        model = WhisperModel(
-            model_name,
-            device=device,
-            compute_type=compute_type,
-            local_files_only=True,
-        )
-    except (OSError, RuntimeError) as error:
-        if device != "cuda":
-            raise
-
-        print(
-            f"Warning: CUDA model failed to load ({error}); using CPU.",
-            file=sys.stderr,
-        )
-
-        device = "cpu"
-        model_name = model_override or CPU_MODEL
-        compute_type = "int8"
-
-        model = WhisperModel(
-            model_name,
-            device=device,
-            compute_type=compute_type,
-            local_files_only=True,
-        )
+    # install.bat downloads models before transcription. Keep audio processing
+    # offline even if the requested model is missing from the local cache.
+    model = WhisperModel(
+        model_name,
+        device=device,
+        compute_type=compute_type,
+        local_files_only=True,
+    )
 
     print(
         f"Using Whisper model: {model_name}; "
@@ -204,6 +147,47 @@ def transcribe_audio_segments(audio_path):
         }
     finally:
         model.model.unload_model()
+
+
+def transcribe_audio_segments(audio_path):
+    configure_windows_cuda_paths()
+
+    requested_device = os.environ.get("WHISPER_DEVICE", "auto").strip().lower()
+    if requested_device not in {"auto", "cuda", "cpu"}:
+        raise ValueError("WHISPER_DEVICE must be auto, cuda, or cpu")
+
+    available_device = get_whisper_device() if requested_device != "cpu" else "cpu"
+    device = "cpu" if requested_device == "cpu" else available_device
+    if device == "cpu" and requested_device != "cpu":
+        print("Warning: CUDA is unavailable; using the CPU model.", file=sys.stderr)
+
+    model_override = os.environ.get("WHISPER_MODEL", "").strip()
+    model_name = model_override or (GPU_MODEL if device == "cuda" else CPU_MODEL)
+    compute_type = "float16" if device == "cuda" else "int8"
+
+    audio, speech_clips = find_speech(audio_path)
+    if len(speech_clips) == 0:
+        print(f"No speech found in: {audio_path}")
+        return {
+            "segments": [],
+            "model": model_name,
+            "device": device,
+        }
+
+    while True:
+        try:
+            # CUDA libraries may load during language detection or iteration of
+            # the lazy segment generator, so retry the entire attempt on CPU.
+            return _transcribe_with_model(
+                audio_path, audio, speech_clips, model_name, device, compute_type
+            )
+        except (OSError, RuntimeError) as error:
+            if device != "cuda":
+                raise
+            print(f"Warning: CUDA transcription failed ({error}); using CPU.", file=sys.stderr)
+            device = "cpu"
+            model_name = model_override or CPU_MODEL
+            compute_type = "int8"
 
 
 def transcribe_audio(audio_path):

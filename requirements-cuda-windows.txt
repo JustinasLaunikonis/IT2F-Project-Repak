@@ -1,0 +1,6 @@
+# Optional GPU libraries installed by install.bat when an NVIDIA GPU is detected.
+# CTranslate2 4.8.2 requires CUDA 12 and cuDNN 9.
+nvidia-cublas-cu12==12.9.2.10
+nvidia-cudnn-cu12==9.26.0.51
+nvidia-cuda-runtime-cu12==12.9.79
+nvidia-cuda-nvrtc-cu12==12.9.86

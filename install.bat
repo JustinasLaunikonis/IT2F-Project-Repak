@@ -50,7 +50,29 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo Downloading the Whisper model for this computer...
+if /I "%WHISPER_DEVICE%"=="cpu" goto download_models
+
+echo Checking for an NVIDIA GPU...
+".venv\Scripts\python.exe" -c "from whisper_demo import get_whisper_device; import sys; sys.exit(get_whisper_device() != 'cuda')"
+if errorlevel 1 goto download_models
+
+echo Installing CUDA 12 and cuDNN 9 libraries for Windows...
+echo These downloads can take several minutes.
+".venv\Scripts\python.exe" -m pip install -r requirements-cuda-windows.txt
+
+if errorlevel 1 (
+    echo Failed to install the NVIDIA libraries.
+    echo Check your internet connection and run install.bat again.
+    echo To use the CPU instead, open PowerShell in this folder and run:
+    echo $env:WHISPER_DEVICE = "cpu"
+    echo .\install.bat
+    echo .\run.bat
+    pause
+    exit /b 1
+)
+
+:download_models
+echo Downloading the Whisper models for this computer...
 ".venv\Scripts\python.exe" download_whisper_model.py
 
 if errorlevel 1 (
