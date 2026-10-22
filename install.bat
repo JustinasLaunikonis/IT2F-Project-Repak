@@ -106,8 +106,13 @@ if errorlevel 1 (
     exit /b 1
 )
 
+rem reuse the saved device before clearing the environment
+if not defined whisper_device (
+    if exist ".venv\repak-settings.bat" call ".venv\repak-settings.bat"
+)
+
 echo creating the python environment...
-"%python%" -m venv .venv
+"%python%" -m venv --clear .venv
 
 if errorlevel 1 (
     echo failed to create the python environment.
@@ -124,10 +129,6 @@ if errorlevel 1 (
     exit /b 1
 )
 
-rem reuse the saved device unless the user supplied a different setting
-if not defined whisper_device (
-    if exist ".venv\repak-settings.bat" call ".venv\repak-settings.bat"
-)
 if not defined whisper_device set "whisper_device=auto"
 if /i "%whisper_device%"=="cpu" goto save_device
 
