@@ -170,6 +170,48 @@ def test_model_selector_remains_usable_without_ollama(monkeypatch):
     assert all(not model["installed"] for model in result["models"])
 
 
+@pytest.mark.parametrize("output, expected", [
+    ("8192\n", 8),
+    ("8192\n12288\n", 12),
+    ("", None),
+    ("N/A", None),
+])
+def test_total_gpu_vram(monkeypatch, output, expected):
+    monkeypatch.setattr(main.subprocess, "check_output", lambda *args, **kwargs: output)
+    assert main.get_gpu_vram() == expected
+
+
+def test_missing_nvidia_driver(monkeypatch):
+    def fail(*args, **kwargs):
+        raise FileNotFoundError()
+    monkeypatch.setattr(main.subprocess, "check_output", fail)
+    assert main.get_gpu_vram() is None
+
+
+@pytest.mark.parametrize("total_vram, expected", [
+    (None, None), (2, None), (3, "qwen3:0.6b"),
+    (6.9, "qwen3:1.7b"), (7, "qwen3:4b"),
+    (11, "qwen3:8b"), (15, "qwen3:14b"),
+])
+def test_recommendation_reserves_one_gb(monkeypatch, total_vram, expected):
+    monkeypatch.delenv("REPORT_MODEL", raising=False)
+    monkeypatch.delenv("REPORT_DEVICE", raising=False)
+    monkeypatch.setattr(main, "get_gpu_vram", lambda: total_vram)
+    original_client = httpx.Client
+
+    def respond(request):
+        return httpx.Response(200, json={"models": [{"name": name} for name in main.report_models]})
+
+    monkeypatch.setattr(main.httpx, "Client", lambda **kwargs: original_client(
+        transport=httpx.MockTransport(respond), **kwargs,
+    ))
+    result = TestClient(main.app).get("/report-models").json()
+    assert result["total_vram"] == total_vram
+    assert result["recommended"] == expected
+    if expected:
+        assert result["default"] == expected
+
+
 @pytest.mark.parametrize("dialogue", ["Checking the machine.", "正在检查机器。"])
 def test_long_calls_extract_all_sections_and_combine_details(monkeypatch, dialogue):
     monkeypatch.setenv("REPORT_MODEL", "qwen3:4b")
