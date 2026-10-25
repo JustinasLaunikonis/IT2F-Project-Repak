@@ -33,6 +33,7 @@ const missingDetailsSubmitButton = document.getElementById(
 
 const microphoneSelect = document.getElementById("microphone-select");
 const reportModelSelect = document.getElementById("report-model-select");
+const reportModelHelp = document.getElementById("report-model-help");
 const microphoneMessage = document.getElementById("microphone-message");
 const listMicrophonesButton = document.getElementById(
     "list-microphones-button",
@@ -78,8 +79,15 @@ async function loadReportModels() {
             reportModelSelect.appendChild(option);
         }
         reportModelSelect.value = result.default;
+        if (result.total_vram == null) {
+            reportModelHelp.textContent = "GPU VRAM could not be detected. No model size recommendation available.";
+        } else {
+            const recommendation = result.recommended || "None";
+            reportModelHelp.textContent = `Total GPU VRAM: ${result.total_vram.toFixed(1)} GB. Recommended model: ${recommendation} (1 GB free for buffer).`;
+        }
     } catch (error) {
         reportModelSelect.value = "none";
+        reportModelHelp.textContent = "Model information could not be loaded.";
     } finally {
         reportModelSelect.disabled = false;
     }
