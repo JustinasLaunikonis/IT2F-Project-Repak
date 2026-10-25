@@ -201,6 +201,14 @@ def list_report_models():
     }
 
 
+@app.post("/report-models/download")
+def download_report_model(model: str):
+    if model not in report_models:
+        raise HTTPException(status_code=400, detail="Unknown interpretation model.")
+    subprocess.Popen(["ollama", "pull", model])
+    return {"status": "started"}
+
+
 class ExtractReportRequest(BaseModel):
     transcript: str = Field(min_length=1)
     model: Literal["qwen3:0.6b", "qwen3:1.7b", "qwen3:4b", "qwen3:8b", "qwen3:14b", "none"] | None = None

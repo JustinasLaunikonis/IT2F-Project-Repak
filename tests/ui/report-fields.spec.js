@@ -38,12 +38,12 @@ test.beforeEach(async function ({ page }) {
     }));
 });
 
-async function recordCall(page) {
+async function recordCall(page, expectedState = "Completed") {
     await page.locator("#list-microphones-button").click();
     await page.locator("#microphone-select").selectOption("test-microphone");
     await page.locator("#start-button").click();
     await page.locator("#stop-button").click();
-    await expect(page.locator("#activity-status")).toHaveText("Activity: Completed");
+    await expect(page.locator("#activity-status")).toHaveText("Activity: " + expectedState);
 }
 
 test("shows total GPU VRAM and a recommendation beside the existing picker", async ({ page }) => {
@@ -97,7 +97,20 @@ test("only empty fields are shown and Generate exports manual values", async ({ 
     const modelSelect = page.getByLabel("Interpretation model");
     await expect(modelSelect).toHaveValue("qwen3:4b");
     await expect(modelSelect.locator('option[value="qwen3:1.7b"]')).toHaveText("qwen3:1.7b — ~4 GB VRAM");
-    await expect(modelSelect.locator('option[value="qwen3:8b"]')).toBeDisabled();
+    const downloadModel = page.getByRole("button", { name: "Download model", exact: true });
+    await expect(downloadModel).toBeHidden();
+    await modelSelect.selectOption("qwen3:8b");
+    await expect(downloadModel).toBeVisible();
+    await page.route("**/report-models/download?model=qwen3%3A8b", route => route.fulfill({
+        json: { status: "started" },
+    }));
+    page.once("dialog", async dialog => {
+        expect(dialog.message()).toContain("Refresh the page after a few minutes");
+        await dialog.accept();
+    });
+    await downloadModel.click();
+    await expect(modelSelect).toHaveValue("qwen3:8b");
+    await expect(modelSelect.locator('option[value="qwen3:8b"]')).toContainText("not installed");
     await modelSelect.selectOption("qwen3:1.7b");
     await recordCall(page);
 
@@ -166,7 +179,9 @@ for (const failure of ["manual", "server", "malformed"]) {
             }),
         }));
         await page.goto("/");
-        await recordCall(page);
+        await recordCall(page, "Error");
+        await expect(page.locator("#retry-button")).toHaveText("Retry filling report");
+        await expect(page.locator("#retry-button")).toBeEnabled();
         await expect(page.locator("#transcript")).toHaveValue(transcript);
         await expect(page.locator('input[name="[machinenummer]"]')).toBeEnabled();
         await expect(page.getByRole("button", { name: "Generate", exact: true })).toBeEnabled();
@@ -183,6 +198,7 @@ test("a second call does not inherit the first call's fields", async ({ page }) 
     await page.goto("/");
     await recordCall(page);
     await page.locator('input[name="[klant]"]').fill("Previous customer");
+    page.once("dialog", dialog => dialog.accept());
     await recordCall(page);
     await expect(page.locator('input[name="[machinenummer]"]')).toHaveValue("");
     await expect(page.locator('input[name="[klant]"]')).toHaveValue("");
