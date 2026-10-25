@@ -116,6 +116,9 @@ async function expectFinishedWithMissingPart(page) {
     await expect(page.locator("#start-button")).toBeEnabled();
     await expect(page.locator("#stop-button")).toBeDisabled();
     await expect(page.locator("#harm-download")).toHaveAttribute("href", /^blob:/);
+    //the missing part can still be retried by hand
+    await expect(page.locator("#retry-button")).toHaveText("Retry transcription");
+    await expect(page.locator("#retry-button")).toBeEnabled();
 }
 
 test("a failed chunk upload is retried once, then marked in the transcript", async function ({ page }) {
@@ -165,7 +168,8 @@ test("a server error shows the message returned by the server", async function (
         "The server could not transcribe this part (error 500). Transcribing the microphone chunk failed: model file is missing."
     );
 
-    //Start works again and clears the previous call
+    //Start works again after confirming replacement of the saved call, and clears the previous call
+    page.once("dialog", dialog => dialog.accept());
     await page.locator("#start-button").click();
     await expect(page.locator("#activity-status")).toHaveText("Activity: Recording");
     await expect(page.locator("#live-error")).toBeHidden();

@@ -20,6 +20,7 @@ const liveError = document.getElementById("live-error");
 
 const startButton = document.getElementById("start-button");
 const stopButton = document.getElementById("stop-button");
+const retryButton = document.getElementById("retry-button");
 
 const stateTester = document.querySelector(".state-tester");
 const testIdleButton = document.getElementById("test-idle");
@@ -42,6 +43,8 @@ const missingDetailsSubmitButton = document.getElementById(
 
 const microphoneSelect = document.getElementById("microphone-select");
 const reportModelSelect = document.getElementById("report-model-select");
+const downloadModelButton = document.getElementById("download-report-model");
+const reportModelHelp = document.getElementById("report-model-help");
 const microphoneMessage = document.getElementById("microphone-message");
 const listMicrophonesButton = document.getElementById(
     "list-microphones-button",
@@ -54,6 +57,26 @@ let callerUrl = null;
 let recordingSessionActive = false; //prevents second recording session from being started
 let stopRequested = false; //prevents stop from being requested more than once
 let recordingStartedAt = null;
+let savedRecording = null;
+let savedTranscript = null;
+let savedLiveSession = null; //live chunks of the saved recording, used for retries
+let retryStep = null;
+let processingCall = false; //prevents processing the same call more than once at the time
+
+function updateRetryButton() {
+    const canRetry = savedRecording !== null && retryStep !== null;
+
+    retryButton.hidden = !canRetry;
+
+    //dont allow retry while recording or processing
+    retryButton.disabled = processingCall || recordingSessionActive;
+
+    if (retryStep === "transcription") {
+        retryButton.textContent = "Retry transcription";
+    } else if (retryStep === "report") {
+        retryButton.textContent = "Retry filling report";
+    }
+}
 
 // Audio is sent for live transcription in pieces of this many seconds.
 const liveChunkSeconds = 5;
@@ -70,18 +93,38 @@ async function loadReportModels() {
             const option = document.createElement("option");
             option.value = model.name;
             option.textContent = `${model.name} — ${model.memory}${model.installed ? "" : " (not installed)"}`;
-            option.disabled = !model.installed;
+            option.dataset.installed = model.installed;
             reportModelSelect.appendChild(option);
         }
         reportModelSelect.value = result.default;
+        if (result.total_vram == null) {
+            reportModelHelp.textContent = "GPU VRAM could not be detected. No model size recommendation available.";
+        } else {
+            const recommendation = result.recommended || "None";
+            reportModelHelp.textContent = `Total GPU VRAM: ${result.total_vram.toFixed(1)} GB. Recommended model: ${recommendation} (1 GB free for buffer).`;
+        }
     } catch (error) {
         reportModelSelect.value = "none";
+        reportModelHelp.textContent = "Model information could not be loaded.";
     } finally {
         reportModelSelect.disabled = false;
     }
 }
 
 loadReportModels();
+
+function showModelDownload() {
+    downloadModelButton.hidden = reportModelSelect.selectedOptions[0].dataset.installed !== "false";
+}
+
+reportModelSelect.addEventListener("change", showModelDownload);
+
+downloadModelButton.addEventListener("click", async function () {
+    await fetch(`/report-models/download?model=${encodeURIComponent(reportModelSelect.value)}`, {
+        method: "POST",
+    });
+    alert("Refresh the page after a few minutes to see whether the model downloaded successfully.");
+});
 
 const jsonStringTemplate = `{
     "[machinenummer]": "",
@@ -172,41 +215,152 @@ showMissingDetails();
 
 function fillCallDate(date) {
     const day = date.toLocaleDateString("en-GB").replaceAll("/", "-");
-    const time = date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    const time = date.toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+    });
     callDetails["[datum]"] = day;
     callDetails["[datum / tijd]"] = `${day} / ${time}`;
 }
 
 async function fillReportFromTranscript(text) {
-    reportModelSelect.disabled = true;
-    try {
-        const response = await fetch("/extract-report", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ transcript: text, model: reportModelSelect.value }),
-        });
-        if (!response.ok) {
-            throw new Error("Automatic filling failed. Complete the remaining details manually.");
+    const selectedModel = reportModelSelect.value;
+
+    if (selectedModel === "none") {
+        return "Automatic filling is off. Complete the details manually";
+    }
+
+    const response = await fetch("/extract-report", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            transcript: text,
+            model: selectedModel,
+        }),
+    });
+
+    if (!response.ok) {
+        throw new Error("The report could not be filled. Please try again.");
+    }
+
+    const result = await response.json();
+
+    if (result.mode === "manual") {
+        throw new Error(
+            result.warning ||
+                "The report could not be filled. Please try again",
+        );
+    }
+
+    for (const [key, value] of Object.entries(result.fields)) {
+        if (!Object.hasOwn(callDetails, key)) {
+            continue;
         }
-        const result = await response.json();
-        for (const [key, value] of Object.entries(result.fields)) {
-            // Keep anything Harm has already entered for this call.
-            if (Object.hasOwn(callDetails, key) && typeof value === "string" && !callDetails[key].trim()) {
-                callDetails[key] = value;
+
+        if (typeof value !== "string") {
+            continue;
+        }
+
+        if (callDetails[key].trim() === "") {
+            callDetails[key] = value;
+        }
+    }
+
+    return result.warning ?? null;
+}
+
+async function processSavedRecording() {
+    if (processingCall || recordingSessionActive || savedRecording === null) {
+        return;
+    }
+
+    processingCall = true;
+    updateRetryButton();
+
+    startButton.disabled = true;
+    stopButton.disabled = true;
+    missingDetailsSubmitButton.disabled = true;
+    reportModelSelect.disabled = true;
+    includeCaller.disabled = true;
+    microphoneSelect.disabled = true;
+    listMicrophonesButton.disabled = true;
+
+    showState("processing");
+
+    try {
+        //reuse successful live chunks, a transcription retry sends only the failed chunks
+        if (savedTranscript === null || retryStep === "transcription") {
+            retryStep = "transcription";
+            activityMessage.textContent = "Finishing the live transcript";
+
+            savedTranscript = await finishLiveTranscript(savedLiveSession);
+            callDetails["[transcriptie]"] = savedTranscript;
+        }
+
+        retryStep = "report";
+
+        let message =
+            "Call processed. Fill in any remaining details, then click Generate.";
+
+        //failure markers alone do not count as speech
+        if (!hasSpokenText(savedLiveSession.entries)) {
+            message =
+                "No speech was transcribed. Complete the report manually.";
+        } else {
+            activityMessage.textContent =
+                "Filling the report using the saved transcript.";
+
+            const warning = await fillReportFromTranscript(savedTranscript);
+
+            if (warning !== null) {
+                message = warning;
             }
         }
-        return result.warning;
+
+        //keep manual retry available for chunks that still failed after Stop
+        retryStep = savedLiveSession.failedChunks.length > 0 ? "transcription" : null;
+
+        showState("completed");
+        activityMessage.textContent = completedMessage(savedLiveSession, message);
     } catch (error) {
-        return "Automatic filling is unavailable. Complete the remaining details manually.";
+        let message;
+
+        if (retryStep === "transcription") {
+            message =
+                "Transcription failed. Your recording is still available. " +
+                "Click Retry transcription.";
+        } else {
+            message =
+                "The report could not be filled. Your recording and " +
+                "transcript are still available. Click Retry filling report.";
+        }
+
+        showError(message + " " + error.message);
     } finally {
+        showMissingDetails();
+
+        processingCall = false;
+        resetRecordingControls();
         reportModelSelect.disabled = false;
+
+        updateRetryButton();
     }
 }
 
+retryButton.addEventListener("click", async function () {
+    await processSavedRecording();
+});
+
 async function submitCallData() {
-    if (recordingSessionActive) {
+    if (recordingSessionActive || processingCall) {
         return;
     }
+
+    processingCall = true;
+    updateRetryButton();
+
     missingDetailsSubmitButton.disabled = true;
     startButton.disabled = true;
 
@@ -241,8 +395,10 @@ async function submitCallData() {
     } catch (error) {
         alert(error.message);
     } finally {
+        processingCall = false;
         missingDetailsSubmitButton.disabled = false;
         startButton.disabled = false;
+        updateRetryButton();
     }
 }
 
@@ -488,8 +644,7 @@ function showTranscriptionInfo(info) {
     const lines = [];
 
     for (const [speaker, details] of channels) {
-        const deviceLabel =
-            details.device === "cuda" ? "GPU (CUDA)" : "CPU";
+        const deviceLabel = details.device === "cuda" ? "GPU (CUDA)" : "CPU";
         const modelLabel =
             details.model.charAt(0).toUpperCase() + details.model.slice(1);
         const channelLabel = showChannelNames ? `${speaker}: ` : "";
@@ -497,8 +652,7 @@ function showTranscriptionInfo(info) {
         lines.push(`${channelLabel}${deviceLabel}, Size: ${modelLabel}`);
     }
 
-    transcriptionInfo.textContent =
-        `Transcription Model Info: ${lines.join(" | ")}`;
+    transcriptionInfo.textContent = `Transcription Model Info: ${lines.join(" | ")}`;
     transcriptionInfo.hidden = false;
 }
 
@@ -546,6 +700,8 @@ function resetRecordingControls() {
 
     microphoneSelect.disabled = false;
     listMicrophonesButton.disabled = false;
+
+    updateRetryButton();
 }
 
 function showError(message) {
@@ -569,12 +725,22 @@ async function handleUnexpectedStop(error, files) {
 
     if (error !== null) {
         showError(error.message);
-    } else {
-        showRecordingReview(files);
-        showState("idle");
-        activityMessage.textContent =
-            "An audio source disconnected. Review the available recording before downloading.";
+        return;
     }
+
+    savedRecording = files;
+    savedLiveSession = session;
+    savedTranscript = null;
+    retryStep = "transcription";
+
+    showRecordingReview(files);
+
+    showError(
+        "An audio source disconnected. Review the available recording, " +
+            "then click Retry transcription to process it",
+    );
+
+    updateRetryButton();
 }
 
 window.addEventListener("pagehide", clearRecordingReview);
@@ -645,7 +811,7 @@ testErrorButton.addEventListener("click", function () {
 
 // Start capture after the user allows access to the selected audio sources.
 startButton.addEventListener("click", async function () {
-    if (recordingSessionActive === true) {
+    if (recordingSessionActive || processingCall) {
         return;
     }
 
@@ -656,11 +822,23 @@ startButton.addEventListener("click", async function () {
         return;
     }
 
+    //ask before replacing the previous recording
+    if (savedRecording !== null) {
+        const replaceRecording = window.confirm(
+            "Starting a new recording replaces the saved call. " +
+                "Download current audio first if you want to keep it. " +
+                "Continue?",
+        );
+
+        if (!replaceRecording) {
+            return;
+        }
+    }
+
     recordingSessionActive = true;
     stopRequested = false;
+    updateRetryButton();
     missingDetailsSubmitButton.disabled = true;
-    clearRecordingReview();
-    clearTranscriptionInfo();
 
     startButton.disabled = true;
     stopButton.disabled = true;
@@ -676,6 +854,8 @@ startButton.addEventListener("click", async function () {
             "Choose Entire Screen, enable Share system audio, and allow microphone access";
     }
 
+    //a saved call can still be retried if the new recording does not start
+    const previousSession = liveSession;
     const session = startLiveSession();
 
     try {
@@ -692,6 +872,16 @@ startButton.addEventListener("click", async function () {
             },
         );
 
+        //clear the previous call only afrer when recording starts
+        savedRecording = null;
+        savedTranscript = null;
+        savedLiveSession = null;
+        retryStep = null;
+
+        clearRecordingReview();
+        clearTranscriptionInfo();
+        updateRetryButton();
+
         if (recordingStartedAt !== null) {
             // Each new recording gets its own report, not values from the previous call.
             Object.assign(callDetails, JSON.parse(jsonStringTemplate));
@@ -707,15 +897,20 @@ startButton.addEventListener("click", async function () {
 
         showState("recording");
     } catch (error) {
-        liveSession = null;
+        liveSession = previousSession;
         resetRecordingControls();
+        updateRetryButton();
         showError(error.message);
     }
 });
 
 // Stop capture and let the user review audio before choosing to download it.
 stopButton.addEventListener("click", async function () {
-    if (recordingSessionActive === false || stopRequested === true) {
+    if (
+        recordingSessionActive === false ||
+        stopRequested === true ||
+        processingCall
+    ) {
         return;
     }
 
@@ -730,28 +925,24 @@ stopButton.addEventListener("click", async function () {
         //stop recording and create the wav audio, the last live chunks are queued now
         const files = await stopWavRecording();
 
+        //keep the audio before sending it to the server
+        savedRecording = files;
+        savedLiveSession = session;
+        savedTranscript = null;
+        retryStep = "transcription";
+
         showRecordingReview(files);
-
-        //the live text is final, only the remaining and failed chunks are transcribed
-        activityMessage.textContent = "Finishing the live transcript";
-        const text = await finishLiveTranscript(session);
-
-        callDetails["[transcriptie]"] = text;
-        const warning = hasSpokenText(session.entries)
-            ? await fillReportFromTranscript(text)
-            : "No speech was transcribed. Complete the report manually.";
-        showMissingDetails();
-
         resetRecordingControls();
 
-        showState("completed");
-        activityMessage.textContent = completedMessage(session, warning);
+        //the live text is final, only the remaining and failed chunks are transcribed
+        await processSavedRecording();
     } catch (error) {
         //reset the interface if recording cant be stopped, the live text stays visible
         clearTranscriptionInfo();
         endLiveSession(session);
         resetRecordingControls();
         showError(error.message);
+        updateRetryButton();
     }
 });
 

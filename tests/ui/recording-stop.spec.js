@@ -8,6 +8,10 @@ function readFormField(request, name) {
 }
 
 test.beforeEach(async function ({ page }) {
+    // Keep report processing independent of locally installed Ollama models.
+    await page.route("**/report-models", route => route.fulfill({
+        json: require("./fixtures/report-models.json"),
+    }));
     await page.route("**/extract-report", route => route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({ fields: {}, warning: null })

@@ -1,4 +1,11 @@
 const { test, expect } = require("@playwright/test");
+
+test.beforeEach(async function ({ page }) {
+    // Keep report processing independent of locally installed Ollama models.
+    await page.route("**/report-models", route => route.fulfill({
+        json: require("./fixtures/report-models.json"),
+    }));
+});
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const transcriptionFixture = require("./fixtures/transcribe-chunk.json");

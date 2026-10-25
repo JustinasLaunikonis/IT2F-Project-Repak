@@ -1,5 +1,12 @@
 const { test, expect } = require("@playwright/test");
 
+test.beforeEach(async function ({ page }) {
+    // Keep report processing independent of locally installed Ollama models.
+    await page.route("**/report-models", route => route.fulfill({
+        json: require("./fixtures/report-models.json"),
+    }));
+});
+
 // The fake worklet sends one 4096-sample block (256 ms at 16 kHz) every 256 ms.
 // page.clock moves time forward, so a 5 second chunk does not take 5 real seconds.
 const blockSeconds = 4096 / 16000;
@@ -290,10 +297,11 @@ test("a failed chunk keeps earlier text, recording continues, and the retry at S
     expect(server.attempts["harm@" + (19 * blockSeconds).toFixed(3)]).toBe(2);
 });
 
-test("a chunk that also fails on retry stays marked in the transcript and the report", async function ({ page }) {
+test("a failed chunk stays marked until manual retry fills only the missing part", async function ({ page }) {
+    let failCaller = true;
     const server = await mockServer(page, {
         shouldFail: function (speaker, startSeconds) {
-            return speaker === "caller" && startSeconds === 0;
+            return failCaller && speaker === "caller" && startSeconds === 0;
         }
     });
     await startRecording(page, true);
@@ -319,6 +327,25 @@ test("a chunk that also fails on retry stays marked in the transcript and the re
     );
     expect(server.attempts["caller@0.000"]).toBe(2);
     expect(server.reports[0]).toContain(marker);
+
+    const savedAudioUrl = await page.locator("#harm-download").getAttribute("href");
+    failCaller = false;
+    await page.getByRole("button", { name: "Retry transcription", exact: true }).click();
+    await expect(page.locator("#activity-status")).toHaveText("Activity: Completed");
+    await expect(page.locator("#retry-button")).toBeHidden();
+    await expect(page.locator("#live-error")).toBeHidden();
+    const finalTranscript = [
+        "[00:00:00] Harm: harm text 1",
+        "[00:00:00] Caller: caller text 4",
+        "[00:00:05] Harm: harm text 2",
+        "[00:00:05] Caller: caller text 2",
+    ].join("\n");
+    await expect(page.locator("#transcript")).toHaveValue(finalTranscript);
+    await expect(page.locator("#harm-download")).toHaveAttribute("href", savedAudioUrl);
+    expect(server.reports).toEqual([server.reports[0], finalTranscript]);
+    expect(server.attempts["caller@0.000"]).toBe(3);
+    expect(server.attempts["harm@0.000"]).toBe(1);
+    expect(server.chunks).toHaveLength(6);
 });
 
 test("a hint appears when the live transcript falls behind", async function ({ page }) {

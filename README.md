@@ -78,7 +78,9 @@ before the report model runs. If a page disappears without calling it, the model
 is unloaded after 60 seconds without audio.
 
 Live text is final: the recording is not transcribed again after Stop. A chunk
-that fails is marked in the transcript and tried once more after Stop. Words cut
+that fails is marked in the transcript and tried once more automatically after
+Stop. If it still fails, click Retry transcription to send only the failed chunks
+again; successful text is kept and each marker is replaced by its text. Words cut
 at the edge of a chunk can be split or slightly wrong.
 
 The language is detected per speaker from the first chunks with speech, limited

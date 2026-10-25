@@ -1,6 +1,10 @@
 const { test, expect } = require("@playwright/test");
 
 test.beforeEach(async function ({ page }) {
+    // Keep report processing independent of locally installed Ollama models.
+    await page.route("**/report-models", route => route.fulfill({
+        json: require("./fixtures/report-models.json"),
+    }));
     await page.route("**/extract-report", route => route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({ fields: {}, warning: null })
@@ -172,6 +176,7 @@ test("default recording requests only microphone and releases it after review", 
         };
         navigator.mediaDevices.getDisplayMedia = undefined;
     });
+    page.once("dialog", dialog => dialog.accept());
     await page.locator("#start-button").click();
     await expect(page.locator("#activity-status")).toHaveText("Activity: Recording");
     await expect(page.locator("#recording-review")).toBeHidden();
@@ -179,7 +184,7 @@ test("default recording requests only microphone and releases it after review", 
     await page.evaluate(function () {
         window.endMicrophone();
     });
-    await expect(page.locator("#activity-message")).toHaveText("An audio source disconnected. Review the available recording before downloading.");
+    await expect(page.locator("#activity-message")).toHaveText("An audio source disconnected. Review the available recording, then click Retry transcription to process it");
     //the audio recorded before the disconnect is still transcribed
     await expect(page.locator("#transcript")).toHaveValue("[00:00:00] Harm: Test microphone transcript");
     await expect(page.locator("#harm-download")).toHaveAttribute("href", /^blob:/);
