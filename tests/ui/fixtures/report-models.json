@@ -1,0 +1,12 @@
+{
+  "models": [
+    {
+      "name": "qwen3:4b",
+      "memory": "~6 GB VRAM",
+      "installed": true
+    }
+  ],
+  "default": "qwen3:4b",
+  "total_vram": null,
+  "recommended": null
+}

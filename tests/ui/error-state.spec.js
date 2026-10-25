@@ -116,7 +116,8 @@ test("a failed upload shows the upload error and allows a new recording", async 
 
     await expectErrorState(
         page,
-        "The recording could not be uploaded. Check that the server is running and press Start again."
+        "Transcription failed. Your recording is still available. Click Retry transcription. " +
+            "The recording could not be uploaded. Check if the server is running, then click Retry transcription."
     );
     await expect(page.locator("#harm-download")).toHaveAttribute("href", /^blob:/);
 });
@@ -140,10 +141,12 @@ test("a server error shows the message returned by the server", async function (
 
     await expectErrorState(
         page,
-        "The server could not transcribe the recording (error 500). Transcribing the microphone recording failed: model file is missing"
+        "Transcription failed. Your recording is still available. Click Retry transcription. " +
+            "The server could not transcribe the recording (error 500). Transcribing the microphone recording failed: model file is missing"
     );
 
-    //Start works again after the error
+    //Start works again after confirming replacement of the saved recording.
+    page.once("dialog", dialog => dialog.accept());
     await page.locator("#start-button").click();
     await expect(page.locator("#activity-status")).toHaveText("Activity: Recording");
 });

@@ -38,12 +38,12 @@ test.beforeEach(async function ({ page }) {
     }));
 });
 
-async function recordCall(page) {
+async function recordCall(page, expectedState = "Completed") {
     await page.locator("#list-microphones-button").click();
     await page.locator("#microphone-select").selectOption("test-microphone");
     await page.locator("#start-button").click();
     await page.locator("#stop-button").click();
-    await expect(page.locator("#activity-status")).toHaveText("Activity: Completed");
+    await expect(page.locator("#activity-status")).toHaveText("Activity: " + expectedState);
 }
 
 test("shows total GPU VRAM and a recommendation beside the existing picker", async ({ page }) => {
@@ -179,7 +179,9 @@ for (const failure of ["manual", "server", "malformed"]) {
             }),
         }));
         await page.goto("/");
-        await recordCall(page);
+        await recordCall(page, "Error");
+        await expect(page.locator("#retry-button")).toHaveText("Retry filling report");
+        await expect(page.locator("#retry-button")).toBeEnabled();
         await expect(page.locator("#transcript")).toHaveValue(transcript);
         await expect(page.locator('input[name="[machinenummer]"]')).toBeEnabled();
         await expect(page.getByRole("button", { name: "Generate", exact: true })).toBeEnabled();
@@ -196,6 +198,7 @@ test("a second call does not inherit the first call's fields", async ({ page }) 
     await page.goto("/");
     await recordCall(page);
     await page.locator('input[name="[klant]"]').fill("Previous customer");
+    page.once("dialog", dialog => dialog.accept());
     await recordCall(page);
     await expect(page.locator('input[name="[machinenummer]"]')).toHaveValue("");
     await expect(page.locator('input[name="[klant]"]')).toHaveValue("");
