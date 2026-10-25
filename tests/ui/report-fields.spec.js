@@ -1,6 +1,7 @@
 const { test, expect } = require("@playwright/test");
 
-const transcript = "Caller: Our machine RP-204 displays E204. Restarting did not help.";
+const spokenText = "Our machine RP-204 displays E204. Restarting did not help.";
+const transcript = "[00:00:00] Harm: " + spokenText;
 
 test.beforeEach(async function ({ page }) {
     await page.route("**/report-models", route => route.fulfill({
@@ -15,9 +16,14 @@ test.beforeEach(async function ({ page }) {
     await page.route("**/static/recorder.js", route => route.fulfill({
         contentType: "text/javascript",
         body: `
-            export async function startWavRecording() {}
+            let live = null;
+            export async function startWavRecording(onStop, includeCaller, microphone, liveOptions) {
+                live = liveOptions;
+            }
             export async function stopWavRecording() {
-                return { harm: new Blob(["test recording"], { type: "audio/wav" }) };
+                const wav = new Blob(["test recording"], { type: "audio/wav" });
+                live.onLiveChunk({ speaker: "harm", startSeconds: 0, durationSeconds: 1, wav, isFinal: true });
+                return { harm: wav };
             }
         `,
     }));
@@ -29,12 +35,18 @@ test.beforeEach(async function ({ page }) {
             kind: "audioinput", label: "Test microphone", deviceId: "test-microphone",
         }];
     });
-    await page.route("**/transcribe", route => route.fulfill({
+    await page.route("**/transcribe-chunk", route => route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
-            text: transcript,
-            transcription_info: { Harm: { model: "small", device: "cpu" } },
+            segments: [{ speaker: "Harm", start: 0, end: 1, text: spokenText }],
+            language: "en",
+            model: "small",
+            device: "cpu",
         }),
+    }));
+    await page.route("**/live/end", route => route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ended: true }),
     }));
 });
 

@@ -8,7 +8,7 @@ test.beforeEach(async function ({ page }) {
 });
 const fs = require("node:fs/promises");
 const path = require("node:path");
-const transcriptionFixture = require("./fixtures/transcribe.json");
+const transcriptionFixture = require("./fixtures/transcribe-chunk.json");
 
 test.use({
     permissions: ["microphone"],
@@ -22,21 +22,39 @@ test("record a fake microphone, review its transcript, and export a Word report"
     testInfo
 ) {
     // 1. Use a known transcript instead of running the speech recognition model.
-    const expectedTranscript = transcriptionFixture.text;
-    const transcriptWithoutWhitespace = expectedTranscript.trim();
-    expect(transcriptWithoutWhitespace.length).toBeGreaterThan(0);
+    const expectedTranscript = "[00:00:00] Harm: " + transcriptionFixture.segments[0].text;
 
-    await page.route("**/transcribe", async function answerTranscriptionRequest(route) {
+    // The first audio chunk returns the fixture. A slow test run can also send a
+    // chunk every 5 seconds while recording, those return no speech.
+    let transcriptionRequests = 0;
+    await page.route("**/transcribe-chunk", async function answerTranscriptionRequest(route) {
         const request = route.request();
         if (request.method() !== "POST") {
             await route.continue();
             return;
         }
 
+        transcriptionRequests++;
+        if (transcriptionRequests > 1) {
+            await route.fulfill({
+                status: 200,
+                contentType: "application/json",
+                body: JSON.stringify({ segments: [], language: "en", model: "small", device: "cpu" })
+            });
+            return;
+        }
+
         await route.fulfill({
             status: 200,
             contentType: "application/json",
-            path: path.join(__dirname, "fixtures", "transcribe.json")
+            path: path.join(__dirname, "fixtures", "transcribe-chunk.json")
+        });
+    });
+    await page.route("**/live/end", async function answerLiveEndRequest(route) {
+        await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ ended: true })
         });
     });
 
@@ -75,7 +93,7 @@ test("record a fake microphone, review its transcript, and export a Word report"
     });
 
     const transcriptionRequestPromise = page.waitForRequest(function isTranscriptionUpload(request) {
-        return request.url().endsWith("/transcribe") && request.method() === "POST";
+        return request.url().endsWith("/transcribe-chunk") && request.method() === "POST";
     });
     await page.locator("#stop-button").click();
     const transcriptionRequest = await transcriptionRequestPromise;

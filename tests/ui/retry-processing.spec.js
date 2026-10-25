@@ -10,17 +10,15 @@ test.use({
     },
 });
 
-const transcriptText =
+const spokenText =
     "The customer is Green Foods. Their packaging machine keeps stopping.";
+const transcriptText = "[00:00:00] Harm: " + spokenText;
 
 const transcriptionResult = {
-    text: transcriptText,
-    transcription_info: {
-        Harm: {
-            model: "small",
-            device: "cpu",
-        },
-    },
+    segments: [{ speaker: "Harm", start: 0, end: 1, text: spokenText }],
+    language: "en",
+    model: "small",
+    device: "cpu",
 };
 
 //prepare the page without using real recording or AI models.
@@ -45,20 +43,26 @@ test.beforeEach(async function ({ page }) {
         await route.fulfill({
             contentType: "application/javascript",
             body: `
-                export async function startWavRecording() {
-                    // No real recording is needed for retry tests.
+                let live;
+                export async function startWavRecording(onStop, caller, microphone, options) {
+                    live = options;
                 }
 
                 export async function stopWavRecording() {
-                    return {
-                        harm: new Blob(
-                            ["saved-test-recording"],
-                            { type: "audio/wav" }
-                        ),
-                    };
+                    const wav = new Blob(["saved-test-recording"], { type: "audio/wav" });
+                    live.onLiveChunk({
+                        speaker: "harm", startSeconds: 0, durationSeconds: 1,
+                        wav, isFinal: true,
+                    });
+                    return { harm: wav };
                 }
             `,
         });
+    });
+
+    await page.route("**/live/end", route => route.fulfill({ json: { ended: true } }));
+    await page.route("**/transcribe", () => {
+        throw new Error("Live retries must not upload the whole recording.");
     });
 
     await page.goto("/");
@@ -86,22 +90,22 @@ async function recordAndStop(page) {
     await page.locator("#stop-button").click();
 }
 
-// Check both one failure and repeated failures.
+// Each chunk gets an automatic retry at Stop, followed by manual retries.
 for (const failuresBeforeSuccess of [1, 2]) {
-    test(`retry transcription after ${failuresBeforeSuccess} failed attempts`, async function ({
+    test(`recover transcription with ${failuresBeforeSuccess} manual retries`, async function ({
         page,
     }) {
         let transcriptionRequests = 0;
 
-        await page.route("**/transcribe", async function (route) {
+        await page.route("**/transcribe-chunk", async function (route) {
             transcriptionRequests++;
 
-            // Each attempt must upload the saved recording.
+            // Each attempt must upload the saved failed chunk.
             expect(route.request().postData()).toContain(
                 "saved-test-recording",
             );
 
-            if (transcriptionRequests <= failuresBeforeSuccess) {
+            if (transcriptionRequests <= failuresBeforeSuccess + 1) {
                 await route.fulfill({
                     status: 503,
                     json: {
@@ -129,8 +133,9 @@ for (const failuresBeforeSuccess of [1, 2]) {
         await recordAndStop(page);
 
         await expect(page.locator("#activity-status")).toHaveText(
-            "Activity: Error",
+            "Activity: Completed",
         );
+        await expect(page.locator("#transcript")).toHaveValue(/Not transcribed/);
 
         const savedAudioUrl = await page
             .locator("#harm-download")
@@ -147,8 +152,9 @@ for (const failuresBeforeSuccess of [1, 2]) {
 
             if (attempt < failuresBeforeSuccess - 1) {
                 await expect(page.locator("#activity-status")).toHaveText(
-                    "Activity: Error",
+                    "Activity: Completed",
                 );
+                await expect(page.locator("#transcript")).toHaveValue(/Not transcribed/);
             } else {
                 await expect(page.locator("#activity-status")).toHaveText(
                     "Activity: Completed",
@@ -166,7 +172,7 @@ for (const failuresBeforeSuccess of [1, 2]) {
 
         await expect(page.locator("#retry-button")).toBeHidden();
 
-        expect(transcriptionRequests).toBe(failuresBeforeSuccess + 1);
+        expect(transcriptionRequests).toBe(failuresBeforeSuccess + 2);
     });
 }
 
@@ -176,7 +182,7 @@ test("retry report extraction without transcribing again", async function ({
     let transcriptionRequests = 0;
     let reportRequests = 0;
 
-    await page.route("**/transcribe", async function (route) {
+    await page.route("**/transcribe-chunk", async function (route) {
         transcriptionRequests++;
 
         await route.fulfill({

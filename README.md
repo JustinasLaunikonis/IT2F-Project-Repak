@@ -55,8 +55,38 @@ curl.exe -X POST http://127.0.0.1:8000/transcribe -F "harm=@$audioFile"
 ```
 
 A successful request returns JSON containing `text`, `segments`, and
-`transcription_info`. The file is processed locally. Browser recording uses
-this endpoint automatically.
+`transcription_info`. The file is processed locally. The browser page no
+longer uses this endpoint; it uses live transcription (below).
+
+### Live transcription while recording
+
+While recording, the page sends the newest audio of each source to
+`POST /transcribe-chunk` about every 5 seconds, and the remaining audio once
+after Stop. Each request is multipart form data with `audio` (16 kHz mono WAV),
+`speaker` (`harm` or `caller`), `start_seconds` (where the chunk starts in the
+whole recording) and `session_id`. The response contains `segments` with
+`speaker`, `start`, `end` and `text`, with times already counted from the start
+of the recording, plus `language`, `model` and `device`:
+
+```powershell
+curl.exe -X POST http://127.0.0.1:8000/transcribe-chunk -F "audio=@$audioFile" -F "speaker=harm" -F "start_seconds=0" -F "session_id=test"
+```
+
+The server keeps one Whisper model loaded during a call. After Stop the page
+calls `POST /live/end` with `{"session_id": "..."}`, which unloads the model
+before the report model runs. If a page disappears without calling it, the model
+is unloaded after 60 seconds without audio.
+
+Live text is final: the recording is not transcribed again after Stop. A chunk
+that fails is marked in the transcript and tried once more automatically after
+Stop. If it still fails, click Retry transcription to send only the failed chunks
+again; successful text is kept and each marker is replaced by its text. Words cut
+at the edge of a chunk can be split or slightly wrong.
+
+The language is detected per speaker from the first chunks with speech, limited
+to English, Dutch and German. When detection is not sure, English is used, and
+after three unsure chunks English is kept for the rest of the call.
+`WHISPER_LANGUAGE` still overrides detection.
 
 ## Run the browser tests
 
@@ -75,7 +105,7 @@ The record-to-export test uses Chromium's fake microphone with
 `--use-fake-device-for-media-stream` and `--use-fake-ui-for-media-stream`,
 and grants microphone permission in its test context. It records through
 browser audio APIs, replaces only
-the `/transcribe` response with synthetic fixture JSON, checks the completed
+the `/transcribe-chunk` response with synthetic fixture JSON, checks the completed
 state and transcript, and downloads a DOCX from the real `/export` endpoint.
 No physical microphone, Whisper model download, or GPU is needed for this
 test. It checks browser integration, not Whisper transcription accuracy.

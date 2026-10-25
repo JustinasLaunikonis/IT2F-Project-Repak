@@ -12,7 +12,7 @@
     <main>
         <h1>Repak live call transcription - Prototype 3</h1>
         <p>The local application is running.</p>
-        <p>Record your microphone and then stop to transcribe it and review the audio.</p>
+        <p>Record your microphone. The transcript appears while you record, and you can review the audio after you stop.</p>
 
         <form>
             <fieldset>
@@ -77,10 +77,18 @@
                     </div>
                 </div>
 
-                <label for="transcript">Call transcript (after recording)</label>
+                <label for="transcript">Call transcript (live)</label>
+
+                <p id="live-delay-notice">
+                    The transcript updates while you record. New text can take a few seconds to appear,
+                    and the last part is added after you stop.
+                </p>
 
                 <textarea id="transcript" name="transcript" readonly
-                    placeholder="The transcript will appear here after recording stops and gets processed."></textarea>
+                    placeholder="The transcript will appear here a few seconds after speech is recorded."></textarea>
+
+                <p id="live-lag" role="status" hidden></p>
+                <p id="live-error" class="live-error" role="alert" hidden></p>
 
                 <p id="transcription-info" hidden></p>
 
