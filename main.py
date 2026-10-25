@@ -24,13 +24,13 @@ static_directory = project_directory / "static"
 home_page = static_directory / "index.html"
 logger = logging.getLogger(__name__)
 
-# Quen models that turn transcrpiton into JSON fields with estimated VRAM usage.
+# Report models in size order, with estimated VRAM usage in GB.
 report_models = {
-    "qwen3:0.6b": "~2 GB VRAM",
-    "qwen3:1.7b": "~4 GB VRAM",
-    "qwen3:4b": "~6 GB VRAM",
-    "qwen3:8b": "~10 GB VRAM",
-    "qwen3:14b": "~14 GB VRAM",
+    "qwen3:0.6b": 2,
+    "qwen3:1.7b": 4,
+    "qwen3:4b": 6,
+    "qwen3:8b": 10,
+    "qwen3:14b": 14,
 }
 
 # Disable the generated API documentation so the page needs no external assets.
@@ -154,6 +154,18 @@ def transcribe_uploaded_wav(
         return transcript_result
 
 
+def get_gpu_vram():
+    try:
+        output = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
+            text=True,
+            timeout=3,
+        )
+        return max(int(memory) for memory in output.split()) / 1024
+    except Exception:
+        return None
+
+
 @app.get("/report-models")
 def list_report_models():
     try:
@@ -164,16 +176,28 @@ def list_report_models():
     except Exception:
         installed = set()
 
-    available = [name for name in report_models if name in installed]
-    default = os.environ.get("REPORT_MODEL", "qwen3:4b")
+    total_vram = get_gpu_vram()
+    recommended = None
+    models = []
+    available = []
+    for name, memory in report_models.items():
+        models.append({"name": name, "memory": f"~{memory} GB VRAM", "installed": name in installed})
+        if name in installed:
+            available.append(name)
+        if total_vram and memory <= total_vram - 1:
+            recommended = name
+
+    if os.environ.get("REPORT_DEVICE") == "cpu":
+        recommended = None
+
+    default = os.environ.get("REPORT_MODEL", recommended or "qwen3:4b")
     if default != "none" and default not in available:
         default = available[0] if available else "none"
     return {
-        "models": [
-            {"name": name, "memory": memory, "installed": name in installed}
-            for name, memory in report_models.items()
-        ],
+        "models": models,
         "default": default,
+        "total_vram": total_vram,
+        "recommended": recommended,
     }
 
 
