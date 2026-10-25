@@ -1,12 +1,22 @@
 // noinspection RedundantIfStatementJS
 
 import { startWavRecording, stopWavRecording } from "./recorder.js"; //these functions come from recorder.js
+import {
+    addFailureMarker,
+    addSegments,
+    formatTimestamp,
+    formatTranscript,
+    hasSpokenText,
+    replaceFailureMarker,
+} from "./live-transcript.js";
 
 const activityStatus = document.getElementById("activity-status");
 const activityMessage = document.getElementById("activity-message");
 const connectionStatus = document.getElementById("connection-status");
 const transcript = document.getElementById("transcript");
 const transcriptionInfo = document.getElementById("transcription-info");
+const liveLag = document.getElementById("live-lag");
+const liveError = document.getElementById("live-error");
 
 const startButton = document.getElementById("start-button");
 const stopButton = document.getElementById("stop-button");
@@ -44,6 +54,12 @@ let callerUrl = null;
 let recordingSessionActive = false; //prevents second recording session from being started
 let stopRequested = false; //prevents stop from being requested more than once
 let recordingStartedAt = null;
+
+// Audio is sent for live transcription in pieces of this many seconds.
+const liveChunkSeconds = 5;
+// Tell the user when the live transcript falls this far behind the recording.
+const liveLagWarningSeconds = 15;
+let liveSession = null;
 
 async function loadReportModels() {
     try {
@@ -266,27 +282,47 @@ function showRecordingReview(files) {
     recordingReview.hidden = false;
 }
 
-async function transcribeRecording(files) {
-    const formData = new FormData();
-
-    formData.append("harm", files.harm, "harm.wav"); //add harm's mic recording
-
-    if (files.caller !== undefined) {
-        formData.append("caller", files.caller, "caller.wav");
+function createLiveSessionId() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+        return window.crypto.randomUUID();
     }
+    return Date.now() + "-" + Math.random().toString(16).slice(2);
+}
+
+function startLiveSession() {
+    liveSession = {
+        id: createLiveSessionId(),
+        entries: [], //transcript lines and failure markers in spoken order
+        info: {}, //Whisper model and device per speaker
+        queue: Promise.resolve(), //chunks are sent one after another
+        pendingChunks: [],
+        failedChunks: [],
+        nextChunkId: 1,
+        recordedSeconds: 0,
+    };
+    liveLag.hidden = true;
+    liveError.hidden = true;
+    liveError.textContent = "";
+    return liveSession;
+}
+
+async function sendLiveChunk(session, chunk) {
+    const formData = new FormData();
+    formData.append("audio", chunk.wav, "chunk.wav");
+    formData.append("speaker", chunk.speaker);
+    formData.append("start_seconds", String(chunk.startSeconds));
+    formData.append("session_id", session.id);
 
     let response;
 
     try {
-        response = await fetch("/transcribe", {
+        response = await fetch("/transcribe-chunk", {
             method: "POST",
             body: formData,
         });
     } catch {
         //fetch only throws when the request never reached the server
-        throw new Error(
-            "The recording could not be uploaded. Check that the server is running and press Start again.",
-        );
+        throw new Error("The audio could not be uploaded. Check that the server is running.");
     }
 
     if (!response.ok) {
@@ -294,7 +330,156 @@ async function transcribeRecording(files) {
     }
 
     const result = await response.json();
+    const speaker = chunk.speaker === "harm" ? "Harm" : "Caller";
+    session.info[speaker] = { model: result.model, device: result.device };
     return result;
+}
+
+function showLiveTranscript(session) {
+    //ignore late answers that belong to an earlier recording
+    if (session !== liveSession) {
+        return;
+    }
+
+    transcript.value = formatTranscript(session.entries);
+    transcript.scrollTop = transcript.scrollHeight;
+
+    //keep Harm before Caller, like the transcription info after recording
+    const info = {};
+    for (const speaker of ["Harm", "Caller"]) {
+        if (session.info[speaker] !== undefined) {
+            info[speaker] = session.info[speaker];
+        }
+    }
+    if (Object.keys(info).length > 0) {
+        showTranscriptionInfo(info);
+    }
+}
+
+function showLiveLag(session) {
+    if (session !== liveSession) {
+        return;
+    }
+
+    let behindSeconds = 0;
+    for (const chunk of session.pendingChunks) {
+        behindSeconds = Math.max(behindSeconds, session.recordedSeconds - chunk.startSeconds);
+    }
+
+    if (behindSeconds >= liveLagWarningSeconds) {
+        liveLag.textContent =
+            "The live transcript is about " +
+            Math.round(behindSeconds) +
+            " seconds behind the recording.";
+        liveLag.hidden = false;
+    } else {
+        liveLag.hidden = true;
+    }
+}
+
+function showLiveError(session, chunk, error) {
+    if (session !== liveSession) {
+        return;
+    }
+
+    const speaker = chunk.speaker === "harm" ? "Harm" : "Caller";
+    const end = chunk.startSeconds + chunk.durationSeconds;
+    liveError.textContent =
+        speaker +
+        "'s audio from " +
+        formatTimestamp(chunk.startSeconds) +
+        " to " +
+        formatTimestamp(end) +
+        " could not be transcribed. " +
+        error.message.replace(/([^.!?])$/, "$1.") + //server details have no full stop
+        " The recording continues, and this part is tried again after you stop.";
+    liveError.hidden = false;
+}
+
+// Called by the recorder for every new piece of audio, also while recording.
+function queueLiveChunk(session, chunk) {
+    chunk.id = session.nextChunkId;
+    session.nextChunkId++;
+    session.pendingChunks.push(chunk);
+    session.recordedSeconds = Math.max(
+        session.recordedSeconds,
+        chunk.startSeconds + chunk.durationSeconds,
+    );
+    showLiveLag(session);
+
+    session.queue = session.queue.then(async function () {
+        try {
+            const result = await sendLiveChunk(session, chunk);
+            addSegments(session.entries, result.segments);
+        } catch (error) {
+            //keep the text received so far and mark the missing part
+            session.failedChunks.push(chunk);
+            addFailureMarker(session.entries, chunk);
+            showLiveError(session, chunk, error);
+        } finally {
+            session.pendingChunks.splice(session.pendingChunks.indexOf(chunk), 1);
+            showLiveTranscript(session);
+            showLiveLag(session);
+        }
+    });
+}
+
+function endLiveSession(session) {
+    if (session === null) {
+        return Promise.resolve();
+    }
+    //lets the server unload Whisper, for example before the report model runs
+    return fetch("/live/end", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: session.id }),
+    }).catch(function () {
+        //the server also unloads the model after a minute without audio
+    });
+}
+
+// Wait for the last chunks, retry failed chunks once, and return the final text.
+async function finishLiveTranscript(session) {
+    let queue;
+    do {
+        queue = session.queue;
+        await queue;
+    } while (queue !== session.queue);
+
+    const retries = session.failedChunks;
+    session.failedChunks = [];
+    for (const chunk of retries) {
+        try {
+            const result = await sendLiveChunk(session, chunk);
+            replaceFailureMarker(session.entries, chunk.id, result.segments);
+        } catch {
+            session.failedChunks.push(chunk);
+        }
+    }
+
+    if (session.failedChunks.length === 0) {
+        liveError.hidden = true;
+    }
+    showLiveTranscript(session);
+    await endLiveSession(session);
+    return formatTranscript(session.entries);
+}
+
+function completedMessage(session, warning) {
+    let message =
+        warning ?? "Call processed. Fill in any remaining details, then click Generate.";
+    const failures = session.failedChunks.length;
+    if (failures === 1) {
+        message =
+            "1 part of the recording could not be transcribed and is marked in the transcript. " +
+            message;
+    } else if (failures > 1) {
+        message =
+            failures +
+            " parts of the recording could not be transcribed and are marked in the transcript. " +
+            message;
+    }
+    return message;
 }
 
 function showTranscriptionInfo(info) {
@@ -336,7 +521,7 @@ async function readServerError(response) {
     }
 
     let message =
-        "The server could not transcribe the recording (error " +
+        "The server could not transcribe this part (error " +
         response.status +
         ").";
     if (detail !== "") {
@@ -368,8 +553,18 @@ function showError(message) {
     activityMessage.textContent = message;
 }
 
-function handleUnexpectedStop(error, files) {
-    clearTranscriptionInfo();
+async function handleUnexpectedStop(error, files) {
+    const session = liveSession;
+    //Stop cannot be used while the last live chunks are finished
+    stopRequested = true;
+    stopButton.disabled = true;
+
+    if (error !== null || session === null) {
+        clearTranscriptionInfo();
+        endLiveSession(session);
+    } else {
+        callDetails["[transcriptie]"] = await finishLiveTranscript(session);
+    }
     resetRecordingControls();
 
     if (error !== null) {
@@ -383,6 +578,16 @@ function handleUnexpectedStop(error, files) {
 }
 
 window.addEventListener("pagehide", clearRecordingReview);
+
+window.addEventListener("pagehide", function () {
+    //closing the tab while recording, let the server unload Whisper straight away
+    if (recordingSessionActive && liveSession !== null) {
+        const body = new Blob([JSON.stringify({ session_id: liveSession.id })], {
+            type: "application/json",
+        });
+        navigator.sendBeacon("/live/end", body);
+    }
+});
 
 //show test activity controls only when the URL includes ?debug=true
 const urlParameters = new URLSearchParams(window.location.search);
@@ -471,19 +676,27 @@ startButton.addEventListener("click", async function () {
             "Choose Entire Screen, enable Share system audio, and allow microphone access";
     }
 
+    const session = startLiveSession();
+
     try {
-        //try to start recorder
+        //try to start recorder, new audio is transcribed every few seconds
         await startWavRecording(
             handleUnexpectedStop,
             includeCaller.checked,
             selectedMicrophoneId,
+            {
+                onLiveChunk: function (chunk) {
+                    queueLiveChunk(session, chunk);
+                },
+                chunkSeconds: liveChunkSeconds,
+            },
         );
 
         if (recordingStartedAt !== null) {
             // Each new recording gets its own report, not values from the previous call.
             Object.assign(callDetails, JSON.parse(jsonStringTemplate));
-            transcript.value = "";
         }
+        transcript.value = "";
         recordingStartedAt = new Date();
         fillCallDate(recordingStartedAt);
         showMissingDetails();
@@ -494,6 +707,7 @@ startButton.addEventListener("click", async function () {
 
         showState("recording");
     } catch (error) {
+        liveSession = null;
         resetRecordingControls();
         showError(error.message);
     }
@@ -510,32 +724,32 @@ stopButton.addEventListener("click", async function () {
     missingDetailsSubmitButton.disabled = true;
 
     showState("processing");
+    const session = liveSession;
 
     try {
-        //stop recording and create the wav audio
+        //stop recording and create the wav audio, the last live chunks are queued now
         const files = await stopWavRecording();
 
         showRecordingReview(files);
 
-        const transcriptionResult = await transcribeRecording(files); // upload both recordings and receive4 the combined transcript
+        //the live text is final, only the remaining and failed chunks are transcribed
+        activityMessage.textContent = "Finishing the live transcript";
+        const text = await finishLiveTranscript(session);
 
-        transcript.value = transcriptionResult.text;
-        showTranscriptionInfo(transcriptionResult.transcription_info);
-
-        callDetails["[transcriptie]"] = transcriptionResult.text;
-        const warning = transcriptionResult.text.trim()
-            ? await fillReportFromTranscript(transcriptionResult.text)
+        callDetails["[transcriptie]"] = text;
+        const warning = hasSpokenText(session.entries)
+            ? await fillReportFromTranscript(text)
             : "No speech was transcribed. Complete the report manually.";
         showMissingDetails();
 
         resetRecordingControls();
 
         showState("completed");
-        activityMessage.textContent =
-            warning ?? "Call processed. Fill in any remaining details, then click Generate.";
+        activityMessage.textContent = completedMessage(session, warning);
     } catch (error) {
-        //reset the interface if recording cant be stopped or transcribed
+        //reset the interface if recording cant be stopped, the live text stays visible
         clearTranscriptionInfo();
+        endLiveSession(session);
         resetRecordingControls();
         showError(error.message);
     }

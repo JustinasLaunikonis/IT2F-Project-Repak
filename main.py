@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import shutil
 from pathlib import Path
@@ -6,7 +7,7 @@ from tempfile import TemporaryDirectory
 from typing import Literal
 
 import httpx
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -16,6 +17,7 @@ from transcript_to_json.report_extractor import extract_call_fields_from_transcr
 from transcript_to_json.report_schema import empty_report, to_report_fields
 from whisper_demo import transcribe_audio_segments
 from speaker_transcript import merge_and_format_transcript
+from live_transcription import SPEAKER_LABELS, LiveTranscriber
 
 
 project_directory = Path(__file__).resolve().parent
@@ -151,6 +153,51 @@ def transcribe_uploaded_wav(
             }
 
         return transcript_result
+
+
+#keeps one Whisper model loaded while a call is being recorded
+live_transcriber = LiveTranscriber()
+
+
+@app.post("/transcribe-chunk")
+def transcribe_live_chunk(
+    audio: UploadFile = File(...),
+    speaker: str = Form(...),
+    start_seconds: float = Form(...),
+    session_id: str = Form(...),
+):
+    if speaker not in SPEAKER_LABELS:
+        raise HTTPException(status_code=400, detail="Speaker must be harm or caller.")
+
+    if not math.isfinite(start_seconds) or start_seconds < 0:
+        raise HTTPException(status_code=400, detail="start_seconds must be zero or more.")
+
+    if not session_id.strip() or len(session_id) > 100:
+        raise HTTPException(status_code=400, detail="A valid session_id is required.")
+
+    with TemporaryDirectory() as temporary_directory:
+        chunk_path = Path(temporary_directory) / "chunk.wav"
+        save_uploaded_wav(audio, chunk_path)
+
+        source = "microphone" if speaker == "harm" else "caller"
+        try:
+            return live_transcriber.transcribe_chunk(chunk_path, speaker, start_seconds, session_id)
+        except Exception as error:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Transcribing the {source} chunk failed: {error}",
+            ) from error
+
+
+class EndLiveSessionRequest(BaseModel):
+    session_id: str = Field(min_length=1, max_length=100)
+
+
+@app.post("/live/end")
+def end_live_session(request: EndLiveSessionRequest):
+    #safe to call more than once, unknown sessions are ignored
+    live_transcriber.end_session(request.session_id)
+    return {"ended": True}
 
 
 @app.get("/report-models")
