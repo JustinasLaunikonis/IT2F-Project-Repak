@@ -79,6 +79,13 @@ extractFieldsButton.addEventListener("click", async () => {
         activityMessage.textContent = "Enter a transcript before extracting fields.";
         return;
     }
+    // Each retry starts fresh, keeping only the transcript and call date.
+    Object.assign(callDetails, JSON.parse(jsonStringTemplate), {
+        "[datum]": callDetails["[datum]"],
+        "[datum / tijd]": callDetails["[datum / tijd]"],
+        "[transcriptie]": transcript.value,
+    });
+    showMissingDetails();
     activityMessage.textContent = "Extracting fields...";
     const warning = await fillReportFromTranscript(transcript.value);
     showMissingDetails();
@@ -195,6 +202,9 @@ function fillCallDate(date) {
 async function fillReportFromTranscript(text) {
     extractFieldsButton.disabled = true;
     reportModelSelect.disabled = true;
+    startButton.disabled = true;
+    missingDetailsSubmitButton.disabled = true;
+    transcript.readOnly = true;
     try {
         const response = await fetch("/extract-report", {
             method: "POST",
@@ -206,7 +216,7 @@ async function fillReportFromTranscript(text) {
         }
         const result = await response.json();
         for (const [key, value] of Object.entries(result.fields)) {
-            // Keep anything Harm has already entered for this call.
+            // Keep call metadata and any details entered while extraction runs.
             if (Object.hasOwn(callDetails, key) && typeof value === "string" && !callDetails[key].trim()) {
                 callDetails[key] = value;
             }
@@ -217,6 +227,9 @@ async function fillReportFromTranscript(text) {
     } finally {
         extractFieldsButton.disabled = false;
         reportModelSelect.disabled = false;
+        startButton.disabled = recordingSessionActive;
+        missingDetailsSubmitButton.disabled = recordingSessionActive;
+        transcript.readOnly = false;
     }
 }
 

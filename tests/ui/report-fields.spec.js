@@ -147,6 +147,95 @@ test("Generate waits for extraction and existing manual values are preserved", a
     await expect.poll(() => submitted?.["[klant]"]).toBe("Harm's customer");
 });
 
+test("extracting again with another model replaces old fields and manual entries", async ({ page }) => {
+    const correctedTranscript = "Caller: The correct machine is RP-315. Our company is New customer.";
+    let finishExtraction;
+    const waiting = new Promise(resolve => { finishExtraction = resolve; });
+    let calls = 0;
+    await page.route("**/extract-report", async route => {
+        if (++calls === 1) {
+            return route.fulfill({ json: { fields: {
+                "[machinenummer]": "WRONG-204", "[alarmcode of exacte tekst]": "E204",
+                "[symptomen]": "Old symptoms",
+            } } });
+        }
+        expect(route.request().postDataJSON()).toEqual({ transcript: correctedTranscript, model: "qwen3:1.7b" });
+        await waiting;
+        await route.fulfill({ json: { fields: {
+            "[machinenummer]": "RP-315", "[klant]": "New customer", "[alarmcode of exacte tekst]": "",
+        } } });
+    });
+    let submitted;
+    await page.route("**/export", route => {
+        submitted = JSON.parse(route.request().postDataJSON().transcript);
+        return route.fulfill({ headers: { filename: "report.docx" }, body: "Download" });
+    });
+
+    await page.goto("/");
+    await recordCall(page);
+    await page.locator('input[name="[klant]"]').fill("Old manual customer");
+    await page.locator('input[name="[distributeur]"]').fill("Old manual distributor");
+    await page.getByLabel("Interpretation model").selectOption("qwen3:1.7b");
+    await page.locator("#transcript").fill(correctedTranscript);
+    const extract = page.getByRole("button", { name: "Extract Fields", exact: true });
+    const generate = page.getByRole("button", { name: "Generate", exact: true });
+    await extract.click();
+
+    await expect(extract).toBeDisabled();
+    await expect(generate).toBeDisabled();
+    await expect(page.locator("#start-button")).toBeDisabled();
+    await expect(page.locator("#transcript")).not.toBeEditable();
+    await expect(page.locator('input[name="[machinenummer]"]')).toHaveValue("");
+    await expect(page.locator('input[name="[klant]"]')).toHaveValue("");
+    await expect(page.locator('input[name="[distributeur]"]')).toHaveValue("");
+    finishExtraction();
+
+    await expect(extract).toBeEnabled();
+    await expect(generate).toBeEnabled();
+    await expect(page.locator("#start-button")).toBeEnabled();
+    await expect(page.locator("#transcript")).toBeEditable();
+    await expect(page.locator('input[name="[alarmcode of exacte tekst]"]')).toHaveValue("");
+    await expect(page.locator('input[name="[symptomen]"]')).toHaveValue("");
+    await generate.click();
+    await expect.poll(() => submitted?.["[machinenummer]"]).toBe("RP-315");
+    expect(submitted["[klant]"]).toBe("New customer");
+    expect(submitted["[distributeur]"]).toBe("");
+    expect(submitted["[alarmcode of exacte tekst]"]).toBe("");
+    expect(submitted["[symptomen]"]).toBe("");
+    expect(submitted["[transcriptie]"]).toBe(correctedTranscript);
+    expect(submitted["[datum]"]).toMatch(/^\d{2}-\d{2}-\d{4}$/);
+    expect(submitted["[datum / tijd]"]).toMatch(/^\d{2}-\d{2}-\d{4} \/ \d{2}:\d{2}$/);
+});
+
+for (const failure of ["manual", "server", "malformed"]) {
+    test(`a failed extraction retry (${failure}) clears the previous report`, async ({ page }) => {
+        let calls = 0;
+        await page.route("**/extract-report", route => {
+            if (++calls === 1) {
+                return route.fulfill({ json: { fields: { "[machinenummer]": "OLD-204" } } });
+            }
+            return route.fulfill({
+                status: failure === "server" ? 500 : 200,
+                json: failure === "malformed" ? { fields: null } : {
+                    fields: {}, mode: "manual", warning: "Complete the details manually.",
+                },
+            });
+        });
+        await page.goto("/");
+        await recordCall(page);
+        await page.locator('input[name="[klant]"]').fill("Old customer");
+        await page.getByRole("button", { name: "Extract Fields", exact: true }).click();
+
+        await expect(page.getByRole("button", { name: "Extract Fields", exact: true })).toBeEnabled();
+        await expect(page.locator("#activity-message")).toContainText("manually");
+        await expect(page.locator('input[name="[machinenummer]"]')).toHaveValue("");
+        await expect(page.locator('input[name="[klant]"]')).toHaveValue("");
+        await expect(page.locator("#transcript")).toHaveValue(transcript);
+        await expect(page.locator("#transcript")).toBeEditable();
+        await expect(page.getByRole("button", { name: "Generate", exact: true })).toBeEnabled();
+    });
+}
+
 for (const failure of ["manual", "server", "malformed"]) {
     test(`extraction failure (${failure}) leaves manual entry available`, async ({ page }) => {
         await page.route("**/extract-report", route => route.fulfill({
