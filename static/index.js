@@ -22,6 +22,11 @@ const startButton = document.getElementById("start-button");
 const stopButton = document.getElementById("stop-button");
 const retryButton = document.getElementById("retry-button");
 
+const uploadHarmInput = document.getElementById("upload-harm-file");
+const uploadCallerInput = document.getElementById("upload-caller-file");
+const uploadButton = document.getElementById("upload-button");
+const uploadError = document.getElementById("upload-error");
+
 const stateTester = document.querySelector(".state-tester");
 const testIdleButton = document.getElementById("test-idle");
 const testRecordingButton = document.getElementById("test-recording");
@@ -59,7 +64,9 @@ let callerUrl = null;
 let recordingSessionActive = false; //prevents second recording session from being started
 let stopRequested = false; //prevents stop from being requested more than once
 let recordingStartedAt = null;
+let callLoadedBefore = false;
 let savedRecording = null;
+let savedCallSource = null;
 let savedTranscript = null;
 let savedLiveSession = null; //live chunks of the saved recording, used for retries
 let retryStep = null;
@@ -288,6 +295,7 @@ async function processSavedRecording() {
     includeCaller.disabled = true;
     microphoneSelect.disabled = true;
     listMicrophonesButton.disabled = true;
+    setUploadControlsDisabled(true);
 
     showState("processing");
 
@@ -295,9 +303,18 @@ async function processSavedRecording() {
         //reuse successful live chunks, a transcription retry sends only the failed chunks
         if (savedTranscript === null || retryStep === "transcription") {
             retryStep = "transcription";
-            activityMessage.textContent = "Finishing the live transcript";
 
-            savedTranscript = await finishLiveTranscript(savedLiveSession);
+            if (savedCallSource === "upload") {
+                activityMessage.textContent =
+                    "Transcribing the uploaded audio. Long files can take several minutes.";
+
+                savedTranscript = await transcribeUploadedAudio(savedRecording);
+            } else {
+                activityMessage.textContent = "Finishing the live transcript";
+
+                savedTranscript = await finishLiveTranscript(savedLiveSession);
+            }
+
             callDetails["[transcriptie]"] = savedTranscript;
         }
 
@@ -306,8 +323,7 @@ async function processSavedRecording() {
         let message =
             "Call processed. Fill in any remaining details, then click Generate.";
 
-        //failure markers alone do not count as speech
-        if (!hasSpokenText(savedLiveSession.entries)) {
+        if (!savedCallHasSpeech()) {
             message =
                 "No speech was transcribed. Complete the report manually.";
         } else {
@@ -321,15 +337,27 @@ async function processSavedRecording() {
             }
         }
 
-        //keep manual retry available for chunks that still failed after Stop
-        retryStep = savedLiveSession.failedChunks.length > 0 ? "transcription" : null;
+        retryStep = null;
 
-        showState("completed");
-        activityMessage.textContent = completedMessage(savedLiveSession, message);
+        if (savedCallSource === "upload") {
+            showState("completed");
+            activityMessage.textContent = message;
+        } else {
+            if (savedLiveSession.failedChunks.length > 0) {
+                retryStep = "transcription";
+            }
+
+            showState("completed");
+            activityMessage.textContent = completedMessage(savedLiveSession, message);
+        }
     } catch (error) {
         let message;
 
-        if (retryStep === "transcription") {
+        if (retryStep === "transcription" && savedCallSource === "upload") {
+            message =
+                "Transcription of the uploaded file failed. " +
+                "Click Retry transcription to try again.";
+        } else if (retryStep === "transcription") {
             message =
                 "Transcription failed. Your recording is still available. " +
                 "Click Retry transcription.";
@@ -355,6 +383,82 @@ retryButton.addEventListener("click", async function () {
     await processSavedRecording();
 });
 
+function savedCallHasSpeech() {
+    if (savedCallSource === "upload") {
+        return savedTranscript.trim() !== "";
+    }
+
+    return hasSpokenText(savedLiveSession.entries);
+}
+
+function setUploadControlsDisabled(disabled) {
+    uploadHarmInput.disabled = disabled;
+    uploadCallerInput.disabled = disabled;
+    uploadButton.disabled = disabled;
+}
+
+function showUploadError(message) {
+    uploadError.textContent = message;
+    uploadError.hidden = false;
+}
+
+function hideUploadError() {
+    uploadError.textContent = "";
+    uploadError.hidden = true;
+}
+
+function getChosenFile(fileInput) {
+    if (fileInput.files.length === 0) {
+        return null;
+    }
+
+    return fileInput.files[0];
+}
+
+function isWavFile(file) {
+    const fileName = file.name.toLowerCase();
+
+    if (fileName.endsWith(".wav")) {
+        return true;
+    }
+
+    return false;
+}
+
+async function transcribeUploadedAudio(files) {
+    const formData = new FormData();
+    formData.append("harm", files.harm, files.harm.name);
+
+    if (files.caller !== undefined) {
+        formData.append("caller", files.caller, files.caller.name);
+    }
+
+    let response;
+
+    try {
+        response = await fetch("/transcribe", {
+            method: "POST",
+            body: formData,
+        });
+    } catch {
+        throw new Error(
+            "The audio file could not be uploaded. " +
+                "Check that the file still exists and that the server is running.",
+        );
+    }
+
+    if (!response.ok) {
+        throw new Error(await readServerError(response, "this file"));
+    }
+
+    const result = await response.json();
+
+    transcript.value = result.text;
+    showTranscriptionInfo(result.transcription_info);
+
+    return result.text;
+}
+
 async function submitCallData() {
     if (recordingSessionActive || processingCall) {
         return;
@@ -365,6 +469,7 @@ async function submitCallData() {
 
     missingDetailsSubmitButton.disabled = true;
     startButton.disabled = true;
+    setUploadControlsDisabled(true);
 
     try {
         const docxGeneratorResponse = await fetch("/export", {
@@ -400,6 +505,7 @@ async function submitCallData() {
         processingCall = false;
         missingDetailsSubmitButton.disabled = false;
         startButton.disabled = false;
+        setUploadControlsDisabled(false);
         updateRetryButton();
     }
 }
@@ -586,6 +692,13 @@ function showRecordingReview(files) {
     recordingReview.hidden = false;
 }
 
+function showUploadedAudioReview(files) {
+    showRecordingReview(files);
+
+    harmSaveControls.saveButton.hidden = true;
+    callerSaveControls.saveButton.hidden = true;
+}
+
 function createLiveSessionId() {
     if (window.crypto && typeof window.crypto.randomUUID === "function") {
         return window.crypto.randomUUID();
@@ -630,7 +743,7 @@ async function sendLiveChunk(session, chunk) {
     }
 
     if (!response.ok) {
-        throw new Error(await readServerError(response));
+        throw new Error(await readServerError(response, "this part"));
     }
 
     const result = await response.json();
@@ -810,7 +923,8 @@ function clearTranscriptionInfo() {
 }
 
 //build a readable message from a failed server response
-async function readServerError(response) {
+//audioDescription is "this part" for a live chunk or "this file" for an upload
+async function readServerError(response, audioDescription) {
     let detail = "";
 
     try {
@@ -823,7 +937,9 @@ async function readServerError(response) {
     }
 
     let message =
-        "The server could not transcribe this part (error " +
+        "The server could not transcribe " +
+        audioDescription +
+        " (error " +
         response.status +
         ").";
     if (detail !== "") {
@@ -848,6 +964,8 @@ function resetRecordingControls() {
 
     microphoneSelect.disabled = false;
     listMicrophonesButton.disabled = false;
+
+    setUploadControlsDisabled(false);
 
     updateRetryButton();
 }
@@ -877,6 +995,7 @@ async function handleUnexpectedStop(error, files) {
     }
 
     savedRecording = files;
+    savedCallSource = "recording";
     savedLiveSession = session;
     savedTranscript = null;
     retryStep = "transcription";
@@ -996,6 +1115,9 @@ startButton.addEventListener("click", async function () {
     microphoneSelect.disabled = true;
     listMicrophonesButton.disabled = true;
 
+    setUploadControlsDisabled(true);
+    hideUploadError();
+
     activityMessage.textContent = "Please allow microphone access";
     if (includeCaller.checked) {
         activityMessage.textContent =
@@ -1022,6 +1144,7 @@ startButton.addEventListener("click", async function () {
 
         //clear the previous call only afrer when recording starts
         savedRecording = null;
+        savedCallSource = null;
         savedTranscript = null;
         savedLiveSession = null;
         retryStep = null;
@@ -1030,10 +1153,11 @@ startButton.addEventListener("click", async function () {
         clearTranscriptionInfo();
         updateRetryButton();
 
-        if (recordingStartedAt !== null) {
+        if (callLoadedBefore) {
             // Each new recording gets its own report, not values from the previous call.
             Object.assign(callDetails, JSON.parse(jsonStringTemplate));
         }
+        callLoadedBefore = true;
         transcript.value = "";
         recordingStartedAt = new Date();
         fillCallDate(recordingStartedAt);
@@ -1075,6 +1199,7 @@ stopButton.addEventListener("click", async function () {
 
         //keep the audio before sending it to the server
         savedRecording = files;
+        savedCallSource = "recording";
         savedLiveSession = session;
         savedTranscript = null;
         retryStep = "transcription";
@@ -1092,6 +1217,90 @@ stopButton.addEventListener("click", async function () {
         showError(error.message);
         updateRetryButton();
     }
+});
+
+function checkUploadFile(file, description) {
+    if (!isWavFile(file)) {
+        return "The " + description + " must be a WAV file.";
+    }
+
+    if (file.size === 0) {
+        return "The " + description + " is empty.";
+    }
+
+    return null;
+}
+
+uploadButton.addEventListener("click", async function () {
+    if (recordingSessionActive || processingCall) {
+        return;
+    }
+
+    hideUploadError();
+
+    const harmFile = getChosenFile(uploadHarmInput);
+    const callerFile = getChosenFile(uploadCallerInput);
+
+    if (harmFile === null) {
+        showUploadError("Choose a microphone (Harm) audio file before clicking Transcribe file.");
+        return;
+    }
+
+    const harmProblem = checkUploadFile(harmFile, "microphone (Harm) file");
+    if (harmProblem !== null) {
+        showUploadError(harmProblem);
+        return;
+    }
+
+    if (callerFile !== null) {
+        const callerProblem = checkUploadFile(callerFile, "caller file");
+        if (callerProblem !== null) {
+            showUploadError(callerProblem);
+            return;
+        }
+    }
+
+    if (savedRecording !== null) {
+        const replaceCall = window.confirm(
+            "Transcribing a file replaces the saved call. " +
+                "Save the current audio first if you want to keep it. " +
+                "Continue?",
+        );
+
+        if (!replaceCall) {
+            return;
+        }
+    }
+
+    const files = { harm: harmFile };
+    if (callerFile !== null) {
+        files.caller = callerFile;
+    }
+
+    liveSession = null;
+    liveLag.hidden = true;
+    liveError.hidden = true;
+    liveError.textContent = "";
+
+    clearRecordingReview();
+    clearTranscriptionInfo();
+
+    if (callLoadedBefore) {
+        Object.assign(callDetails, JSON.parse(jsonStringTemplate));
+    }
+    callLoadedBefore = true;
+    transcript.value = "";
+    showMissingDetails();
+
+    savedRecording = files;
+    savedCallSource = "upload";
+    savedLiveSession = null;
+    savedTranscript = null;
+    retryStep = "transcription";
+
+    showUploadedAudioReview(files);
+
+    await processSavedRecording();
 });
 
 //save the microphone selected by the user

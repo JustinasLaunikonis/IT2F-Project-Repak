@@ -12,7 +12,8 @@
     <main>
         <h1>Repak live call transcription - Prototype 3</h1>
         <p>The local application is running.</p>
-        <p>Record your microphone. The transcript appears while you record, and you can review the audio after you stop.</p>
+        <p>Record your microphone. The transcript appears while you record, and you can review the audio after you stop.
+            You can also upload a WAV file that was recorded earlier.</p>
 
         <form>
             <fieldset>
@@ -62,6 +63,29 @@
                     Keep this page open to retry processing.
                     Save the recording before refreshing or closing the page.
                 </p>
+
+                <div id="upload-audio" class="upload-audio">
+                    <h2>Or upload an audio file</h2>
+                    <p>
+                        Transcribe a WAV file that was recorded earlier, without recording.
+                        The file is processed on this computer. Choose a separate caller file
+                        only if the caller was recorded on its own.
+                    </p>
+
+                    <label for="upload-harm-file">Microphone (Harm) audio file</label>
+                    <input id="upload-harm-file" type="file" accept=".wav,audio/wav">
+
+                    <label for="upload-caller-file">Caller audio file (optional)</label>
+                    <input id="upload-caller-file" type="file" accept=".wav,audio/wav">
+
+                    <div class="controls">
+                        <button id="upload-button" type="button">
+                            Transcribe file
+                        </button>
+                    </div>
+
+                    <p id="upload-error" class="live-error" role="alert" hidden></p>
+                </div>
 
                 <div id="recording-review" hidden>
                     <h2>Review recordings</h2>
