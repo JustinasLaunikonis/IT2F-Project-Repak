@@ -30,9 +30,24 @@ establish that a problem exists. Suggested actions are not completed actions.
 An explicitly stated suspected cause belongs in reported_cause even if it is
 unconfirmed; recording that stated possibility is not inventing a diagnosis.
 
+Avoid duplicate information within and across report fields, including paraphrases
+of the same fact. Assign each detail to its most specific field: identifiers to
+their identifier fields, timing to problem_started or frequency, completed actions
+and their results to actions_taken, earlier changes to recent_changes, and stated
+causes to reported_cause or other_causes. Keep problem to a short main complaint;
+symptoms contains only additional observations. reported_facts is for remaining
+facts, not a recap of the other fields. Do not repeat a cause under other_causes,
+or repeat missing information under uncertainties. Return null when a field would
+only repeat information already assigned elsewhere. Preserve every distinct fact,
+including negation, uncertainty, and the difference between completed and proposed
+actions. Within each narrative field, put each distinct fact on its own line once.
+Names may occur in separate role fields when the same person explicitly holds
+those roles; identifiers needed for search terms or to understand a question or
+advice may also recur. These are meaningful references, not duplicate narratives.
+
 Examples below demonstrate the rules, not facts to copy into the actual report:
 - Harm: "The problem is that the conveyor stops after twenty minutes."
-  problem = "The conveyor stops after twenty minutes."
+  problem = "The conveyor stops."; frequency = "After twenty minutes."
 - Caller: "The problem is that the conveyor stops after twenty minutes."
   The same problem must be extracted regardless of the speaker.
 - Harm: "Does the conveyor stop after twenty minutes?"
@@ -43,6 +58,7 @@ Examples below demonstrate the rules, not facts to copy into the actual report:
   Do not change "might be faulty" into "is faulty" or invent a confirmed cause.
 - Caller: "We restarted the machine twice, but the fault returned."
   actions_taken = "Restarted the machine twice; the fault returned."
+  Do not copy or paraphrase this action and result into symptoms or reported_facts.
 - Harm: "Try restarting the machine."
   This is advice from Harm, not evidence of a completed restart.
 - Caller: "Our machine RP-204 stopped."
@@ -51,7 +67,7 @@ Examples below demonstrate the rules, not facts to copy into the actual report:
   alarm_code = "E204".
 - [00:00:01] Harm: "The problem is that the sealing"
   [00:00:05] Harm: "station jams whenever we increase the speed."
-  problem = "The sealing station jams whenever the speed increases."
+  problem = "The sealing station jams."; frequency = "Whenever the speed increases."
   These fragments form one statement; do not treat either fragment as missing information.
 - Harm: "This is a test. The reporting software leaves some available"
   Harm: "information out of the JSON report. Some transcribed words may also be wrong."
