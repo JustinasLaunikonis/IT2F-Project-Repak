@@ -36,6 +36,8 @@ const harmPreview = document.getElementById("harm-preview");
 const callerPreview = document.getElementById("caller-preview");
 const harmDownload = document.getElementById("harm-download");
 const callerDownload = document.getElementById("caller-download");
+const harmSaveControls = findSaveControls("harm", harmDownload);
+const callerSaveControls = findSaveControls("caller", callerDownload);
 const missingDetails = document.getElementById("missing-details-form");
 const missingDetailsSubmitButton = document.getElementById(
     "missing-details-submit-button",
@@ -404,6 +406,150 @@ async function submitCallData() {
 
 missingDetailsSubmitButton.addEventListener("click", submitCallData);
 
+function findSaveControls(prefix, downloadLink) {
+    const controls = {
+        defaultName: prefix,
+        downloadLink: downloadLink,
+        saveButton: document.getElementById(prefix + "-save-button"),
+        panel: document.getElementById(prefix + "-save-panel"),
+        fileNameInput: document.getElementById(prefix + "-filename"),
+        confirmButton: document.getElementById(prefix + "-save-confirm"),
+        cancelButton: document.getElementById(prefix + "-save-cancel"),
+        errorMessage: document.getElementById(prefix + "-filename-error"),
+    };
+
+    return controls;
+}
+
+function isForbiddenFileNameCharacter(character) {
+    const forbiddenCharacters = "<>:\"/\\|?*";
+
+    if (forbiddenCharacters.includes(character)) {
+        return true;
+    }
+
+    if (character.charCodeAt(0) < 32) {
+        return true;
+    }
+
+    return false;
+}
+ 
+function trimDotsAndSpaces(name) {
+    let start = 0;
+    let end = name.length;
+
+    while (start < end && (name[start] === "." || name[start] === " ")) {
+        start++;
+    }
+
+    while (end > start && (name[end - 1] === "." || name[end - 1] === " ")) {
+        end--;
+    }
+
+    return name.slice(start, end);
+}
+
+function cleanAudioFileName(typedName) {
+    const maximumLength = 100;
+    let name = typedName.trim();
+
+    let safeName = "";
+    for (const character of name) {
+        if (isForbiddenFileNameCharacter(character)) {
+            safeName = safeName + "-";
+        } else {
+            safeName = safeName + character;
+        }
+    }
+    name = trimDotsAndSpaces(safeName);
+
+    if (name.length > maximumLength) {
+        name = name.slice(0, maximumLength);
+        name = trimDotsAndSpaces(name);
+    }
+
+    while (name.toLowerCase().endsWith(".wav")) {
+        name = name.slice(0, name.length - ".wav".length);
+        name = trimDotsAndSpaces(name);
+    }
+
+    return name;
+}
+
+function showFileNameError(controls, message) {
+    controls.errorMessage.textContent = message;
+    controls.errorMessage.hidden = false;
+}
+
+function hideFileNameError(controls) {
+    controls.errorMessage.textContent = "";
+    controls.errorMessage.hidden = true;
+}
+
+function openSavePanel(controls) {
+    hideFileNameError(controls);
+    controls.saveButton.hidden = true;
+    controls.panel.hidden = false;
+
+    controls.fileNameInput.focus();
+    controls.fileNameInput.select();
+}
+
+function closeSavePanel(controls) {
+    hideFileNameError(controls);
+    controls.panel.hidden = true;
+    controls.saveButton.hidden = false;
+
+    controls.saveButton.focus();
+}
+
+function downloadAudio(controls) {
+    const fileName = cleanAudioFileName(controls.fileNameInput.value);
+
+    if (fileName === "") {
+        showFileNameError(controls, "Enter a file name before downloading.");
+        return;
+    }
+
+    controls.downloadLink.download = fileName + ".wav";
+    controls.downloadLink.click();
+
+    closeSavePanel(controls);
+}
+
+function resetSaveControls(controls) {
+    controls.panel.hidden = true;
+    controls.saveButton.hidden = false;
+    hideFileNameError(controls);
+    controls.fileNameInput.value = controls.defaultName;
+    controls.downloadLink.download = controls.defaultName + ".wav";
+}
+
+function setUpSaveControls(controls) {
+    controls.saveButton.addEventListener("click", function () {
+        openSavePanel(controls);
+    });
+
+    controls.confirmButton.addEventListener("click", function () {
+        downloadAudio(controls);
+    });
+
+    controls.cancelButton.addEventListener("click", function () {
+        closeSavePanel(controls);
+    });
+
+    controls.fileNameInput.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            downloadAudio(controls);
+        }
+    });
+}
+
+setUpSaveControls(harmSaveControls);
+setUpSaveControls(callerSaveControls);
+
 function clearRecordingReview() {
     recordingReview.hidden = true;
     callerReview.hidden = true;
@@ -411,6 +557,8 @@ function clearRecordingReview() {
     callerPreview.removeAttribute("src");
     harmDownload.removeAttribute("href");
     callerDownload.removeAttribute("href");
+    resetSaveControls(harmSaveControls);
+    resetSaveControls(callerSaveControls);
 
     if (harmUrl !== null) {
         URL.revokeObjectURL(harmUrl);
@@ -826,7 +974,7 @@ startButton.addEventListener("click", async function () {
     if (savedRecording !== null) {
         const replaceRecording = window.confirm(
             "Starting a new recording replaces the saved call. " +
-                "Download current audio first if you want to keep it. " +
+                "Save the current audio first if you want to keep it. " +
                 "Continue?",
         );
 
