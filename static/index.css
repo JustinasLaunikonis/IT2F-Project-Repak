@@ -79,6 +79,22 @@ legend {
     margin-bottom: 20px;
 }
 
+.upload-audio {
+    margin-bottom: 20px;
+    padding: 1rem;
+    border: 1px solid #d7dde5;
+    border-radius: 0.75rem;
+}
+
+.upload-audio h2 {
+    margin-top: 0;
+}
+
+.upload-audio input[type="file"] {
+    display: block;
+    margin-bottom: 1rem;
+}
+
 .save-panel-row {
     display: flex;
     align-items: center;

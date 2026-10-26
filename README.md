@@ -55,8 +55,19 @@ curl.exe -X POST http://127.0.0.1:8000/transcribe -F "harm=@$audioFile"
 ```
 
 A successful request returns JSON containing `text`, `segments`, and
-`transcription_info`. The file is processed locally. The browser page no
-longer uses this endpoint; it uses live transcription (below).
+`transcription_info`. The file is processed locally. Recording in the browser
+page uses live transcription (below) instead of this endpoint.
+
+### Upload an audio file in the browser page
+
+Under **Or upload an audio file**, choose a WAV file for the microphone (Harm)
+and, optionally, a separate caller WAV file, then click **Transcribe file**.
+The page sends the files to `POST /transcribe`, shows the transcript, and fills
+the report in the same way as after a recording. If transcription or report
+filling fails, click **Retry** to try that step again. Text from the Harm file
+is labelled `Harm`, so a single file that contains both speakers is labelled
+`Harm` throughout. The call date fields stay empty for manual entry, because
+the time of an uploaded call is not known.
 
 ### Live transcription while recording
 
