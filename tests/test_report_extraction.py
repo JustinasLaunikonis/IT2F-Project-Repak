@@ -284,11 +284,15 @@ def test_fields_cover_word_template():
 def test_manual_values_reach_downloaded_docx(monkeypatch, tmp_path):
     monkeypatch.setattr(docx_generator, "script_directory", tmp_path)
     fields = empty_report()
-    fields.update({"[klant]": "Manual customer", "[transcriptie]": TRANSCRIPT})
+    fields.update({"[klant]": "Manual customer", "[distributeur]": "Manual distributor", "[transcriptie]": TRANSCRIPT})
     response = TestClient(main.app).post("/export", json={"transcript": json.dumps(fields)})
     assert response.status_code == 200
     document = Document(io.BytesIO(response.content))
     text = " ".join(node.text or "" for node in document.element.iter("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t"))
     assert "Manual customer" in text
+    assert "Manual distributor" in " ".join(
+        node.text or "" for section in document.sections
+        for node in section.header._element.iter("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t")
+    )
     assert TRANSCRIPT in text
     assert docx_generator.find_unreplaced_placeholders(document) == set()

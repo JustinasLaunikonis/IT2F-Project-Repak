@@ -29,6 +29,7 @@ const missingDetails = document.getElementById("missing-details-form");
 const missingDetailsSubmitButton = document.getElementById(
     "missing-details-submit-button",
 );
+const extractFieldsButton = document.getElementById("extract-fields-button");
 
 const microphoneSelect = document.getElementById("microphone-select");
 const reportModelSelect = document.getElementById("report-model-select");
@@ -71,6 +72,18 @@ loadReportModels();
 function showModelDownload() {
     downloadModelButton.hidden = reportModelSelect.selectedOptions[0].dataset.installed !== "false";
 }
+
+extractFieldsButton.addEventListener("click", async () => {
+    if (recordingSessionActive || reportModelSelect.disabled) return;
+    if (!transcript.value.trim()) {
+        activityMessage.textContent = "Enter a transcript before extracting fields.";
+        return;
+    }
+    activityMessage.textContent = "Extracting fields...";
+    const warning = await fillReportFromTranscript(transcript.value);
+    showMissingDetails();
+    activityMessage.textContent = warning ?? "Fields extracted. Complete any remaining details.";
+});
 
 reportModelSelect.addEventListener("change", showModelDownload);
 
@@ -131,6 +144,10 @@ const jsonStringTemplate = `{
     "[afwijkingen of onzekerheden]": ""
   }`;
 
+transcript.addEventListener("input", function () {
+    callDetails["[transcriptie]"] = transcript.value;
+});
+
 const callDetails = JSON.parse(jsonStringTemplate);
 
 function showMissingDetails() {
@@ -176,6 +193,7 @@ function fillCallDate(date) {
 }
 
 async function fillReportFromTranscript(text) {
+    extractFieldsButton.disabled = true;
     reportModelSelect.disabled = true;
     try {
         const response = await fetch("/extract-report", {
@@ -197,6 +215,7 @@ async function fillReportFromTranscript(text) {
     } catch (error) {
         return "Automatic filling is unavailable. Complete the remaining details manually.";
     } finally {
+        extractFieldsButton.disabled = false;
         reportModelSelect.disabled = false;
     }
 }

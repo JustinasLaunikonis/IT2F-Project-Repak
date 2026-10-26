@@ -3,7 +3,7 @@ from transcript_to_json.report_schema import to_report_fields
 
 
 # Fictional call. Details are scattered rather than read out as a form.
-# This covers the 28 interpreted fields; dates and manual fields are separate.
+# This covers the interpreted fields; dates and manual fields are separate.
 transcript = """
 [00:00:00] Harm: Repak service, Harm Vermeer speaking. Sorry, I missed the start of that.
 [00:00:06] Caller: Aisha Khan here, from Northmere Foods Ltd in Leeds. We've got a pallet waiting and the packing line has been giving us trouble all morning.
@@ -41,13 +41,12 @@ expected_values = {
     "machine_number": "RP-7318",
     "customer": "Northmere Foods Ltd",
     "alarm_code": "E731",
-    "distributor": "Westbridge Packaging Services",
+    "distributor": None,
     "technician": "Marco Bell",
     "contact_person": "Aisha Khan",
     "engineer": "Sofia van Dijk",
     "repak_employee": "Harm Vermeer",
     "machine_status": "stopped",
-    "frequency": "occasionally",
 }
 
 
@@ -62,19 +61,21 @@ def main():
 
     missing = [
         name for name, value in extracted.model_dump().items()
-        if value is None or not value.strip()
+        if name != "distributor" and (value is None or not value.strip())
     ]
     print("\nMissing interpreted fields:")
-    print(", ".join(missing) if missing else "None: all 28 interpreted fields are populated.")
+    print(", ".join(missing) if missing else "None: all automatically interpreted fields are populated.")
 
     incorrect = []
     for name, expected in expected_values.items():
         actual = getattr(extracted, name)
-        if actual is None or actual.strip().casefold() != expected.casefold():
+        matches = actual is None if expected is None else actual is not None and actual.strip().casefold() == expected.casefold()
+        if not matches:
             incorrect.append(name)
             print(f"{name}: expected {expected!r}, got {actual!r}")
 
-    # Review the remaining summaries for meaning; wording can vary.
+    # Review the remaining summaries, including the reported frequency, for meaning;
+    # wording can vary. Distributor must stay empty for manual entry.
     assert not missing and not incorrect, "Extraction needs review; see the results above."
 
 
