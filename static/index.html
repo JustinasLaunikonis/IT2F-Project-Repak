@@ -60,20 +60,48 @@
 
                 <p>
                     Keep this page open to retry processing.
-                    Download the recording before refreshing or closing the page.
+                    Save the recording before refreshing or closing the page.
                 </p>
 
                 <div id="recording-review" hidden>
                     <h2>Review recordings</h2>
-                    <p>Listen to each available recording. Download only after confirming that it contains the intended
-                        audio.</p>
+                    <p>Listen to each available recording. Click Save audio and choose a file name only after
+                        confirming that it contains the intended audio.</p>
                     <label for="harm-preview">Microphone (Harm)</label>
                     <audio id="harm-preview" controls></audio>
-                    <a id="harm-download" download="harm.wav">Download harm.wav</a>
+                    <a id="harm-download" download="harm.wav" hidden>Download harm.wav</a>
+                    <div class="save-audio">
+                        <button id="harm-save-button" type="button">Save audio</button>
+                        <div id="harm-save-panel" hidden>
+                            <label for="harm-filename">File name</label>
+                            <div class="save-panel-row">
+                                <input id="harm-filename" type="text" value="harm" autocomplete="off"
+                                    spellcheck="false">
+                                <span>.wav</span>
+                                <button id="harm-save-confirm" type="button">Download</button>
+                                <button id="harm-save-cancel" type="button">Cancel</button>
+                            </div>
+                            <p id="harm-filename-error" class="live-error" role="alert" hidden></p>
+                        </div>
+                    </div>
                     <div id="caller-review" hidden>
                         <label for="caller-preview">Window system audio (caller)</label>
                         <audio id="caller-preview" controls></audio>
-                        <a id="caller-download" download="caller.wav">Download caller.wav</a>
+                        <a id="caller-download" download="caller.wav" hidden>Download caller.wav</a>
+                        <div class="save-audio">
+                            <button id="caller-save-button" type="button">Save audio</button>
+                            <div id="caller-save-panel" hidden>
+                                <label for="caller-filename">File name</label>
+                                <div class="save-panel-row">
+                                    <input id="caller-filename" type="text" value="caller" autocomplete="off"
+                                        spellcheck="false">
+                                    <span>.wav</span>
+                                    <button id="caller-save-confirm" type="button">Download</button>
+                                    <button id="caller-save-cancel" type="button">Cancel</button>
+                                </div>
+                                <p id="caller-filename-error" class="live-error" role="alert" hidden></p>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
