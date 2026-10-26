@@ -6,9 +6,10 @@ test.beforeEach(async function ({ page }) {
     await page.route("**/report-models", route => route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({ default: "qwen3:4b", models: [
-            { name: "qwen3:1.7b", memory: "~4 GB VRAM", installed: true },
-            { name: "qwen3:4b", memory: "~6 GB VRAM", installed: true },
-            { name: "qwen3:8b", memory: "~10 GB VRAM", installed: false },
+            { name: "qwen3:1.7b", label: "1.7B (fastest)", memory: "~4 GB VRAM", installed: true },
+            { name: "qwen3:4b", label: "4B (detailed, slower)", memory: "~6 GB VRAM", installed: true },
+            { name: "qwen3:8b", label: "8B (larger, slower)", memory: "~10 GB VRAM", installed: false },
+            { name: "qwen3:14b", label: "14B (best, slowest)", memory: "~14 GB VRAM", installed: true },
         ] }),
     }));
     // Recording itself is tested separately. These tests cover the report flow.
@@ -74,7 +75,11 @@ test("only empty fields are shown and Generate exports manual values", async ({ 
     await page.goto("/");
     const modelSelect = page.getByLabel("Interpretation model");
     await expect(modelSelect).toHaveValue("qwen3:4b");
-    await expect(modelSelect.locator('option[value="qwen3:1.7b"]')).toHaveText("qwen3:1.7b — ~4 GB VRAM");
+    await expect(modelSelect.locator('option[value="qwen3:1.7b"]')).toHaveText("1.7B (fastest)");
+    await expect(modelSelect.locator('option[value="qwen3:14b"]')).toHaveText("14B (best, slowest)");
+    await expect(modelSelect.locator('option[value="qwen3:8b"]')).toHaveText("8B (larger, slower) (not installed)");
+    await expect(page.locator("#report-model-help")).toHaveCount(0);
+    await expect(modelSelect.locator('option[value="qwen3:0.6b"]')).toHaveCount(0);
     const downloadModel = page.getByRole("button", { name: "Download model", exact: true });
     await expect(downloadModel).toBeHidden();
     await modelSelect.selectOption("qwen3:8b");

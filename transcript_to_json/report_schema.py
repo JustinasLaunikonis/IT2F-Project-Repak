@@ -1,4 +1,9 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
+
+
+ReportModel = Literal["qwen3:1.7b", "qwen3:4b", "qwen3:8b", "qwen3:14b", "none"]
 
 
 # Every placeholder in the Word template, including fields filled manually.

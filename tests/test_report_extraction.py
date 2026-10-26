@@ -137,6 +137,7 @@ def test_disabled_model_preserves_full_transcript(monkeypatch):
     (["qwen3:1.7b", "qwen3:4b"], "qwen3:1.7b", "qwen3:1.7b"),
     (["qwen3:1.7b"], "qwen3:4b", "qwen3:1.7b"),
     (["qwen3:4b"], "none", "none"),
+    (["qwen3:0.6b", "qwen3:14b"], "qwen3:0.6b", "qwen3:14b"),
     ([], "qwen3:4b", "none"),
 ])
 def test_selector_lists_installed_models_and_respects_default(monkeypatch, installed, configured, expected):
@@ -153,7 +154,9 @@ def test_selector_lists_installed_models_and_respects_default(monkeypatch, insta
     response = TestClient(main.app).get("/report-models")
     assert response.status_code == 200
     assert response.json()["default"] == expected
-    assert {model["name"] for model in response.json()["models"] if model["installed"]} == set(installed)
+    models = response.json()["models"]
+    assert "qwen3:0.6b" not in {model["name"] for model in models}
+    assert {model["name"] for model in models if model["installed"]} == set(installed) - {"qwen3:0.6b"}
 
 
 def test_model_selector_remains_usable_without_ollama(monkeypatch):
@@ -230,10 +233,54 @@ def test_long_calls_extract_all_sections_and_combine_details(monkeypatch, dialog
 
 def test_section_overlap_keeps_boundary_dialogue_together():
     dialogue = "Harm: Which company?\nCaller: Example Packaging."
-    transcript = "x" * 5980 + "\n" + dialogue
+    transcript = "x" * 5980 + "\n" + dialogue + "\n" + "y" * 16000
     sections = list(report_extractor.split_transcript(transcript))
-    assert len(sections) == 2
+    assert len(sections) > 1
     assert any(dialogue in section for section in sections)
+
+
+def test_ordinary_call_keeps_introduction_and_final_status_in_one_request():
+    transcript = "Caller: Priya from Riverside.\n" + "Check readings.\n" * 850 + "Caller: We are still stopped."
+    assert 12000 < len(transcript.encode("utf-8")) < 16000
+    assert list(report_extractor.split_transcript(transcript)) == [transcript]
+
+
+@pytest.mark.parametrize("employee", ["Harm", "Sofia"])
+def test_explicit_employee_name_is_preserved(model_response, employee):
+    model_response["message"]["content"] = json.dumps(dict(MODEL_FIELDS, repak_employee=employee))
+    result = report_extractor.extract_call_fields_from_transcript(TRANSCRIPT)
+    assert result.repak_employee == employee
+
+
+def test_removed_model_cannot_be_selected_or_downloaded(monkeypatch):
+    client = TestClient(main.app)
+    monkeypatch.setattr(main.subprocess, "Popen", lambda *args: pytest.fail("Removed model downloaded"))
+    assert client.post("/extract-report", json={"transcript": TRANSCRIPT, "model": "qwen3:0.6b"}).status_code == 422
+    assert client.post("/report-models/download", params={"model": "qwen3:0.6b"}).status_code == 400
+    monkeypatch.setenv("REPORT_MODEL", "qwen3:0.6b")
+    monkeypatch.setattr(report_extractor.httpx, "Client", lambda **kwargs: pytest.fail("Removed model contacted"))
+    assert client.post("/extract-report", json={"transcript": TRANSCRIPT}).json()["mode"] == "manual"
+
+
+@pytest.mark.parametrize("thinking", ["true", "false"])
+def test_thinking_stays_disabled_even_with_legacy_override(monkeypatch, thinking):
+    monkeypatch.setenv("REPORT_THINK", thinking)
+    original_client = httpx.Client
+
+    def respond(request):
+        payload = json.loads(request.content)
+        assert payload["think"] is False
+        return httpx.Response(200, json={"done": True, "message": {
+            "thinking": "Internal analysis must not enter the report.",
+            "content": json.dumps(MODEL_FIELDS),
+        }})
+
+    monkeypatch.setattr(report_extractor.httpx, "Client", lambda **kwargs: original_client(
+        transport=httpx.MockTransport(respond), **kwargs,
+    ))
+    result = report_extractor.extract_call_fields_from_transcript(TRANSCRIPT, "qwen3:14b")
+    assert result.machine_number == "RP-204"
+    assert "Internal analysis" not in result.model_dump_json()
 
 
 def test_unknown_values_and_speaker_labels_stay_empty(model_response):

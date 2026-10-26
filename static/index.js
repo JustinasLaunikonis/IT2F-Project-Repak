@@ -55,7 +55,8 @@ async function loadReportModels() {
         for (const model of result.models) {
             const option = document.createElement("option");
             option.value = model.name;
-            option.textContent = `${model.name} — ${model.memory}${model.installed ? "" : " (not installed)"}`;
+            option.textContent = `${model.label}${model.installed ? "" : " (not installed)"}`;
+            option.title = model.memory;
             option.dataset.installed = model.installed;
             reportModelSelect.appendChild(option);
         }
