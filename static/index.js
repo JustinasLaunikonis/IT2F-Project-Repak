@@ -52,6 +52,7 @@ const extractFieldsButton = document.getElementById("extract-fields-button");
 const microphoneSelect = document.getElementById("microphone-select");
 const reportModelSelect = document.getElementById("report-model-select");
 const downloadModelButton = document.getElementById("download-report-model");
+const reportModelHelp = document.getElementById("report-model-help");
 const microphoneMessage = document.getElementById("microphone-message");
 const listMicrophonesButton = document.getElementById(
     "list-microphones-button",
@@ -101,7 +102,7 @@ async function loadReportModels() {
         for (const model of result.models) {
             const option = document.createElement("option");
             option.value = model.name;
-            option.textContent = `${model.label}${model.installed ? "" : " (not installed)"}`;
+            option.textContent = `${model.label ?? model.name}${model.installed ? "" : " (not installed)"}`;
             option.title = model.memory;
             option.dataset.installed = model.installed;
             reportModelSelect.appendChild(option);
@@ -128,22 +129,51 @@ function showModelDownload() {
 }
 
 extractFieldsButton.addEventListener("click", async () => {
-    if (recordingSessionActive || reportModelSelect.disabled) return;
+    if (recordingSessionActive || processingCall || reportModelSelect.disabled) return;
     if (!transcript.value.trim()) {
         activityMessage.textContent = "Enter a transcript before extracting fields.";
         return;
     }
+
+    processingCall = true;
+    updateRetryButton();
+    extractFieldsButton.disabled = true;
+    reportModelSelect.disabled = true;
+    startButton.disabled = true;
+    missingDetailsSubmitButton.disabled = true;
+    setUploadControlsDisabled(true);
+    transcript.readOnly = true;
+
     // Each retry starts fresh, keeping only the transcript and call date.
     Object.assign(callDetails, JSON.parse(jsonStringTemplate), {
         "[datum]": callDetails["[datum]"],
         "[datum / tijd]": callDetails["[datum / tijd]"],
         "[transcriptie]": transcript.value,
     });
+    if (savedRecording !== null) {
+        savedTranscript = transcript.value;
+    }
     showMissingDetails();
+    showState("processing");
     activityMessage.textContent = "Extracting fields...";
-    const warning = await fillReportFromTranscript(transcript.value);
-    showMissingDetails();
-    activityMessage.textContent = warning ?? "Fields extracted. Complete any remaining details.";
+
+    try {
+        const warning = await fillReportFromTranscript(transcript.value);
+        // Re-extraction must not hide chunks that still need transcription retries.
+        retryStep = savedLiveSession?.failedChunks.length ? "transcription" : null;
+        showState("completed");
+        activityMessage.textContent = warning ?? "Fields extracted. Complete any remaining details.";
+    } catch (error) {
+        if (savedRecording !== null && retryStep !== "transcription") {
+            retryStep = "report";
+        }
+        showError("Automatic filling is unavailable. Complete the remaining details manually.");
+    } finally {
+        showMissingDetails();
+        processingCall = false;
+        resetRecordingControls();
+        reportModelSelect.disabled = false;
+    }
 });
 
 reportModelSelect.addEventListener("change", showModelDownload);
@@ -207,6 +237,9 @@ const jsonStringTemplate = `{
 
 transcript.addEventListener("input", function () {
     callDetails["[transcriptie]"] = transcript.value;
+    if (savedTranscript !== null) {
+        savedTranscript = transcript.value;
+    }
 });
 
 const callDetails = JSON.parse(jsonStringTemplate);
@@ -257,11 +290,74 @@ function fillCallDate(date) {
 }
 
 async function fillReportFromTranscript(text) {
+    const selectedModel = reportModelSelect.value;
+
+    if (selectedModel === "none") {
+        return "Automatic filling is off. Complete the details manually";
+    }
+
+    const response = await fetch("/extract-report", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            transcript: text,
+            model: selectedModel,
+        }),
+    });
+
+    if (!response.ok) {
+        throw new Error("The report could not be filled. Please try again.");
+    }
+
+    const result = await response.json();
+
+    if (result.mode === "manual") {
+        throw new Error(
+            result.warning ||
+                "The report could not be filled. Please try again",
+        );
+    }
+
+    for (const [key, value] of Object.entries(result.fields)) {
+        if (!Object.hasOwn(callDetails, key)) {
+            continue;
+        }
+
+        if (typeof value !== "string") {
+            continue;
+        }
+
+        if (callDetails[key].trim() === "") {
+            callDetails[key] = value;
+        }
+    }
+
+    return result.warning ?? null;
+}
+
+async function processSavedRecording() {
+    if (processingCall || recordingSessionActive || savedRecording === null) {
+        return;
+    }
+
+    processingCall = true;
+    updateRetryButton();
+
     extractFieldsButton.disabled = true;
-    reportModelSelect.disabled = true;
-    startButton.disabled = true;
-    missingDetailsSubmitButton.disabled = true;
     transcript.readOnly = true;
+    startButton.disabled = true;
+    stopButton.disabled = true;
+    missingDetailsSubmitButton.disabled = true;
+    reportModelSelect.disabled = true;
+    includeCaller.disabled = true;
+    microphoneSelect.disabled = true;
+    listMicrophonesButton.disabled = true;
+    setUploadControlsDisabled(true);
+
+    showState("processing");
+
     try {
         //reuse successful live chunks, a transcription retry sends only the failed chunks
         if (savedTranscript === null || retryStep === "transcription") {
@@ -280,11 +376,23 @@ async function fillReportFromTranscript(text) {
 
             callDetails["[transcriptie]"] = savedTranscript;
         }
-        const result = await response.json();
-        for (const [key, value] of Object.entries(result.fields)) {
-            // Keep call metadata and any details entered while extraction runs.
-            if (Object.hasOwn(callDetails, key) && typeof value === "string" && !callDetails[key].trim()) {
-                callDetails[key] = value;
+
+        retryStep = "report";
+
+        let message =
+            "Call processed. Fill in any remaining details, then click Generate.";
+
+        if (!savedCallHasSpeech()) {
+            message =
+                "No speech was transcribed. Complete the report manually.";
+        } else {
+            activityMessage.textContent =
+                "Filling the report using the saved transcript.";
+
+            const warning = await fillReportFromTranscript(savedTranscript);
+
+            if (warning !== null) {
+                message = warning;
             }
         }
 
@@ -320,11 +428,13 @@ async function fillReportFromTranscript(text) {
 
         showError(message + " " + error.message);
     } finally {
-        extractFieldsButton.disabled = false;
+        showMissingDetails();
+
+        processingCall = false;
+        resetRecordingControls();
         reportModelSelect.disabled = false;
-        startButton.disabled = recordingSessionActive;
-        missingDetailsSubmitButton.disabled = recordingSessionActive;
-        transcript.readOnly = false;
+
+        updateRetryButton();
     }
 }
 
@@ -489,7 +599,7 @@ function isForbiddenFileNameCharacter(character) {
 
     return false;
 }
- 
+
 function trimDotsAndSpaces(name) {
     let start = 0;
     let end = name.length;
@@ -902,6 +1012,8 @@ async function readServerError(response, audioDescription) {
 function resetRecordingControls() {
     recordingSessionActive = false;
     stopRequested = false;
+    extractFieldsButton.disabled = processingCall;
+    transcript.readOnly = processingCall;
     missingDetailsSubmitButton.disabled = false;
 
     connectionStatus.textContent = "Connection: Not connected";
@@ -1054,6 +1166,8 @@ startButton.addEventListener("click", async function () {
     recordingSessionActive = true;
     stopRequested = false;
     updateRetryButton();
+    extractFieldsButton.disabled = true;
+    transcript.readOnly = true;
     missingDetailsSubmitButton.disabled = true;
 
     startButton.disabled = true;

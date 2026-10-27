@@ -112,7 +112,7 @@ test("only empty fields are shown and Generate exports manual values", async ({ 
     await expect(modelSelect.locator('option[value="qwen3:1.7b"]')).toHaveText("1.7B (fastest)");
     await expect(modelSelect.locator('option[value="qwen3:14b"]')).toHaveText("14B (best, slowest)");
     await expect(modelSelect.locator('option[value="qwen3:8b"]')).toHaveText("8B (larger, slower) (not installed)");
-    await expect(page.locator("#report-model-help")).toHaveCount(0);
+    await expect(page.locator("#report-model-help")).toBeVisible();
     await expect(modelSelect.locator('option[value="qwen3:0.6b"]')).toHaveCount(0);
     const downloadModel = page.getByRole("button", { name: "Download model", exact: true });
     await expect(downloadModel).toBeHidden();
@@ -223,6 +223,7 @@ test("extracting again with another model replaces old fields and manual entries
     await expect(extract).toBeDisabled();
     await expect(generate).toBeDisabled();
     await expect(page.locator("#start-button")).toBeDisabled();
+    await expect(page.locator("#upload-button")).toBeDisabled();
     await expect(page.locator("#transcript")).not.toBeEditable();
     await expect(page.locator('input[name="[machinenummer]"]')).toHaveValue("");
     await expect(page.locator('input[name="[klant]"]')).toHaveValue("");
@@ -232,6 +233,7 @@ test("extracting again with another model replaces old fields and manual entries
     await expect(extract).toBeEnabled();
     await expect(generate).toBeEnabled();
     await expect(page.locator("#start-button")).toBeEnabled();
+    await expect(page.locator("#upload-button")).toBeEnabled();
     await expect(page.locator("#transcript")).toBeEditable();
     await expect(page.locator('input[name="[alarmcode of exacte tekst]"]')).toHaveValue("");
     await expect(page.locator('input[name="[symptomen]"]')).toHaveValue("");
@@ -245,6 +247,63 @@ test("extracting again with another model replaces old fields and manual entries
     expect(submitted["[datum]"]).toMatch(/^\d{2}-\d{2}-\d{4}$/);
     expect(submitted["[datum / tijd]"]).toMatch(/^\d{2}-\d{2}-\d{4} \/ \d{2}:\d{2}$/);
 });
+
+for (const source of ["recording", "upload"]) {
+    for (const action of ["Retry filling report", "Extract Fields"]) {
+        test(`${source}: ${action} uses corrected text without transcribing again`, async ({ page }) => {
+            const corrected = "Caller: The correct machine is RP-315.";
+            const reports = [];
+            let transcriptions = 0;
+            await page.route("**/transcribe-chunk", route => {
+                transcriptions++;
+                return route.fulfill({ json: {
+                    segments: [{ speaker: "Harm", start: 0, end: 1, text: spokenText }],
+                    language: "en", model: "small", device: "cpu",
+                } });
+            });
+            await page.route("**/transcribe", route => {
+                transcriptions++;
+                return route.fulfill({ json: {
+                    text: transcript,
+                    transcription_info: { Harm: { model: "small", device: "cpu" } },
+                } });
+            });
+            await page.route("**/extract-report", route => {
+                reports.push(route.request().postDataJSON().transcript);
+                return route.fulfill({ json: reports.length === 1 ? {
+                    mode: "manual", fields: {}, warning: "Try again.",
+                } : {
+                    mode: "llm", fields: { "[machinenummer]": "RP-315" }, warning: null,
+                } });
+            });
+
+            await page.goto("/");
+            await expect(page.locator("#report-model-select")).toBeEnabled();
+            if (source === "recording") {
+                await recordCall(page, "Error");
+            } else {
+                await page.locator("#upload-harm-file").setInputFiles({
+                    name: "call.wav", mimeType: "audio/wav", buffer: Buffer.from("test audio"),
+                });
+                await page.locator("#upload-button").click();
+                await expect(page.locator("#activity-status")).toHaveText("Activity: Error");
+            }
+
+            const audioUrl = await page.locator("#harm-download").getAttribute("href");
+            await expect(page.locator("#transcript")).toBeEditable();
+            await page.locator("#transcript").fill(corrected);
+            await page.getByRole("button", { name: action, exact: true }).click();
+
+            await expect(page.locator("#activity-status")).toHaveText("Activity: Completed");
+            await expect(page.locator("#retry-button")).toBeHidden();
+            await expect(page.locator("#transcript")).toHaveValue(corrected);
+            await expect(page.locator("#harm-download")).toHaveAttribute("href", audioUrl);
+            await expect(page.locator('input[name="[machinenummer]"]')).toHaveCount(0);
+            expect(reports).toEqual([transcript, corrected]);
+            expect(transcriptions).toBe(1);
+        });
+    }
+}
 
 for (const failure of ["manual", "server", "malformed"]) {
     test(`a failed extraction retry (${failure}) clears the previous report`, async ({ page }) => {

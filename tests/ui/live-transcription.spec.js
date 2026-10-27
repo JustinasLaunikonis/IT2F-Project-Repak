@@ -179,6 +179,8 @@ test("the page says the live transcript can have a short delay", async function 
 test("Harm and caller text appears while recording and the rest is added after Stop", async function ({ page }) {
     const server = await mockServer(page);
     await startRecording(page, true);
+    await expect(page.locator("#transcript")).not.toBeEditable();
+    await expect(page.locator("#extract-fields-button")).toBeDisabled();
 
     // Nothing is sent before the first 5 seconds have passed.
     await page.clock.runFor(4000);
@@ -226,6 +228,8 @@ test("Harm and caller text appears while recording and the rest is added after S
         "[00:00:10] Caller: caller text 3"
     ].join("\n");
     await expect(page.locator("#transcript")).toHaveValue(finalTranscript);
+    await expect(page.locator("#transcript")).toBeEditable();
+    await expect(page.locator("#extract-fields-button")).toBeEnabled();
     expect(server.reports).toEqual([finalTranscript]);
     expect(server.liveEnds).toBe(1);
     await expect(page.locator("#harm-download")).toHaveAttribute("href", /^blob:/);
@@ -329,6 +333,13 @@ test("a failed chunk stays marked until manual retry fills only the missing part
     expect(server.reports[0]).toContain(marker);
 
     const savedAudioUrl = await page.locator("#harm-download").getAttribute("href");
+    await page.getByRole("button", { name: "Extract Fields", exact: true }).click();
+    await expect(page.locator("#activity-status")).toHaveText("Activity: Completed");
+    await expect(page.locator("#retry-button")).toHaveText("Retry transcription");
+    await expect(page.locator("#retry-button")).toBeEnabled();
+    expect(server.reports).toEqual([server.reports[0], server.reports[0]]);
+    expect(server.chunks).toHaveLength(5);
+
     failCaller = false;
     await page.getByRole("button", { name: "Retry transcription", exact: true }).click();
     await expect(page.locator("#activity-status")).toHaveText("Activity: Completed");
@@ -342,7 +353,7 @@ test("a failed chunk stays marked until manual retry fills only the missing part
     ].join("\n");
     await expect(page.locator("#transcript")).toHaveValue(finalTranscript);
     await expect(page.locator("#harm-download")).toHaveAttribute("href", savedAudioUrl);
-    expect(server.reports).toEqual([server.reports[0], finalTranscript]);
+    expect(server.reports).toEqual([server.reports[0], server.reports[0], finalTranscript]);
     expect(server.attempts["caller@0.000"]).toBe(3);
     expect(server.attempts["harm@0.000"]).toBe(1);
     expect(server.chunks).toHaveLength(6);
