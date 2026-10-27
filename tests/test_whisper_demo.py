@@ -352,8 +352,8 @@ def test_speech_is_found_where_each_speaker_talks():
     harm_starts = [start for start, end in harm_clips]
     caller_starts = [start for start, end in caller_clips]
 
-    assert caller_starts == pytest.approx([11.4, 20.1, 28.0], abs=0.5)
-    assert harm_starts == pytest.approx([16.5, 24.8, 31.2], abs=0.5)
+    assert harm_starts == pytest.approx([11.4, 20.1, 28.0], abs=0.5)
+    assert caller_starts == pytest.approx([16.5, 24.8, 31.2], abs=0.5)
     assert len(harm_audio) == len(caller_audio)
 
 

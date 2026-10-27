@@ -74,6 +74,38 @@ legend {
     margin-bottom: 20px;
 }
 
+.save-audio {
+    margin-top: 0.5rem;
+    margin-bottom: 20px;
+}
+
+.upload-audio {
+    margin-bottom: 20px;
+    padding: 1rem;
+    border: 1px solid #d7dde5;
+    border-radius: 0.75rem;
+}
+
+.upload-audio h2 {
+    margin-top: 0;
+}
+
+.upload-audio input[type="file"] {
+    display: block;
+    margin-bottom: 1rem;
+}
+
+.save-panel-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.save-panel-row input {
+    padding: 0.5rem;
+}
+
 .missing-details-row {
     display: flex;
     align-items: center;
@@ -156,4 +188,11 @@ textarea {
     display: flex;
     flex-wrap: wrap;
     gap: 0.75rem;
+}
+
+.live-error {
+    padding: 0.75rem 1rem;
+    border: 1px solid #f08787;
+    border-radius: 0.5rem;
+    background-color: #fde2e2;
 }

@@ -1,6 +1,17 @@
 const { test, expect } = require("@playwright/test");
 
+//read a text field from a multipart chunk upload
+function readFormField(request, name) {
+    const body = request.postDataBuffer().toString("latin1");
+    const match = body.match(new RegExp('name="' + name + '"\\r\\n\\r\\n([^\\r]*)'));
+    return match ? match[1] : null;
+}
+
 test.beforeEach(async function ({ page }) {
+    // Keep report processing independent of locally installed Ollama models.
+    await page.route("**/report-models", route => route.fulfill({
+        json: require("./fixtures/report-models.json"),
+    }));
     await page.route("**/extract-report", route => route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({ fields: {}, warning: null })
@@ -8,25 +19,42 @@ test.beforeEach(async function ({ page }) {
 });
 
 test("stopping capture closes every track and shows the transcript", async function ({ page }) {
-    await page.route("**/transcribe", async function (route) {
+    const serverRequests = [];
+    page.on("request", function (request) {
+        const name = new URL(request.url()).pathname;
+        if (name === "/transcribe-chunk") {
+            serverRequests.push(name + " " + readFormField(request, "speaker"));
+        } else if (name === "/live/end" || name === "/extract-report") {
+            serverRequests.push(name);
+        }
+    });
+
+    await page.route("**/transcribe-chunk", async function (route) {
+        const speaker = readFormField(route.request(), "speaker");
+        let result = {
+            segments: [{ speaker: "Harm", start: 0, end: 1, text: "Hello caller" }],
+            language: "en",
+            model: "large-v3-turbo",
+            device: "cuda"
+        };
+        if (speaker === "caller") {
+            result = {
+                segments: [{ speaker: "Caller", start: 0.5, end: 1, text: "Test caller transcript" }],
+                language: "en",
+                model: "small",
+                device: "cpu"
+            };
+        }
         await route.fulfill({
             status: 200,
             contentType: "application/json",
-            body: JSON.stringify({
-                text: "Test caller transcript",
-                transcription_info: {
-                    Harm: {
-                        model: "large-v3-turbo",
-                        device: "cuda"
-                    },
-                    Caller: {
-                        model: "small",
-                        device: "cpu"
-                    }
-                }
-            })
+            body: JSON.stringify(result)
         });
     });
+    await page.route("**/live/end", route => route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ended: true })
+    }));
 
     await page.addInitScript(function () {
         window.stoppedCaptureTracks = [];
@@ -133,7 +161,16 @@ test("stopping capture closes every track and shows the transcript", async funct
     await expect(page.locator("#activity-message")).toHaveText(
         "Call processed. Fill in any remaining details, then click Generate."
     );
-    await expect(page.locator("#transcript")).toHaveValue("Test caller transcript");
+    await expect(page.locator("#transcript")).toHaveValue(
+        "[00:00:00] Harm: Hello caller\n[00:00:00] Caller: Test caller transcript"
+    );
+    //the remaining audio of both sources is sent, and Whisper is released before the report model runs
+    expect(serverRequests).toEqual([
+        "/transcribe-chunk harm",
+        "/transcribe-chunk caller",
+        "/live/end",
+        "/extract-report"
+    ]);
     await expect(page.locator("#transcription-info")).toBeVisible();
     await expect(page.locator("#transcription-info")).toHaveText("Transcription Model Info: Harm: GPU (CUDA), Size: Large-v3-turbo | Caller: CPU, Size: Small");
     await expect(page.locator("#harm-download")).toHaveAttribute("download", "harm.wav");

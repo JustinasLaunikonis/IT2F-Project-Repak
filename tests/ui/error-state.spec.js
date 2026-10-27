@@ -103,10 +103,31 @@ for (const startError of startErrors) {
     });
 }
 
-test("a failed upload shows the upload error and allows a new recording", async function ({ page }) {
-    await page.route("**/transcribe", async function (route) {
+const notTranscribedLine =
+    "[00:00:00] Harm: [Not transcribed: Harm's audio from 00:00:00 to 00:00:00 could not be transcribed. Listen to the recording for this part.]";
+
+async function expectFinishedWithMissingPart(page) {
+    await expect(page.locator("#activity-status")).toHaveText("Activity: Completed");
+    await expect(page.locator("#activity-message")).toHaveText(
+        "1 part of the recording could not be transcribed and is marked in the transcript. No speech was transcribed. Complete the report manually."
+    );
+    await expect(page.locator("#transcript")).toHaveValue(notTranscribedLine);
+    await expect(page.locator("#connection-status")).toHaveText("Connection: Not connected");
+    await expect(page.locator("#start-button")).toBeEnabled();
+    await expect(page.locator("#stop-button")).toBeDisabled();
+    await expect(page.locator("#harm-download")).toHaveAttribute("href", /^blob:/);
+    //the missing part can still be retried by hand
+    await expect(page.locator("#retry-button")).toHaveText("Retry transcription");
+    await expect(page.locator("#retry-button")).toBeEnabled();
+}
+
+test("a failed chunk upload is retried once, then marked in the transcript", async function ({ page }) {
+    let chunkUploads = 0;
+    await page.route("**/transcribe-chunk", async function (route) {
+        chunkUploads++;
         await route.abort("connectionrefused");
     });
+    await page.route("**/live/end", route => route.abort("connectionrefused"));
     await page.addInitScript(mockMicrophone, { recordingError: null });
 
     await chooseMicrophone(page);
@@ -114,23 +135,27 @@ test("a failed upload shows the upload error and allows a new recording", async 
     await expect(page.locator("#activity-status")).toHaveText("Activity: Recording");
     await page.locator("#stop-button").click();
 
-    await expectErrorState(
-        page,
-        "The recording could not be uploaded. Check that the server is running and press Start again."
+    await expectFinishedWithMissingPart(page);
+    await expect(page.locator("#live-error")).toHaveText(
+        "Harm's audio from 00:00:00 to 00:00:00 could not be transcribed. The audio could not be uploaded. Check that the server is running. The recording continues, and this part is tried again after you stop."
     );
-    await expect(page.locator("#harm-download")).toHaveAttribute("href", /^blob:/);
+    expect(chunkUploads).toBe(2);
 });
 
 test("a server error shows the message returned by the server", async function ({ page }) {
-    await page.route("**/transcribe", async function (route) {
+    await page.route("**/transcribe-chunk", async function (route) {
         await route.fulfill({
             status: 500,
             contentType: "application/json",
             body: JSON.stringify({
-                detail: "Transcribing the microphone recording failed: model file is missing"
+                detail: "Transcribing the microphone chunk failed: model file is missing"
             })
         });
     });
+    await page.route("**/live/end", route => route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ended: true })
+    }));
     await page.addInitScript(mockMicrophone, { recordingError: null });
 
     await chooseMicrophone(page);
@@ -138,12 +163,15 @@ test("a server error shows the message returned by the server", async function (
     await expect(page.locator("#activity-status")).toHaveText("Activity: Recording");
     await page.locator("#stop-button").click();
 
-    await expectErrorState(
-        page,
-        "The server could not transcribe the recording (error 500). Transcribing the microphone recording failed: model file is missing"
+    await expectFinishedWithMissingPart(page);
+    await expect(page.locator("#live-error")).toContainText(
+        "The server could not transcribe this part (error 500). Transcribing the microphone chunk failed: model file is missing."
     );
 
-    //Start works again after the error
+    //Start works again after confirming replacement of the saved call, and clears the previous call
+    page.once("dialog", dialog => dialog.accept());
     await page.locator("#start-button").click();
     await expect(page.locator("#activity-status")).toHaveText("Activity: Recording");
+    await expect(page.locator("#live-error")).toBeHidden();
+    await expect(page.locator("#transcript")).toHaveValue("");
 });

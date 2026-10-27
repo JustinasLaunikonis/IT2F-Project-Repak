@@ -10,7 +10,57 @@ function stopTracks(streams) {
     }
 }
 
+function stopLiveTimer(recording) {
+    if (recording.live !== null && recording.live.timer !== null) {
+        clearInterval(recording.live.timer);
+        recording.live.timer = null;
+    }
+}
+
+// Cut the samples recorded since the previous cut into one WAV chunk per source.
+// The start time comes from counted samples, so it matches the full WAV files.
+function emitLiveChunks(recording, isFinal) {
+    if (recording.live === null) {
+        return;
+    }
+
+    const sources = { harm: recording.harmChunks };
+    if (recording.includeCaller) {
+        sources.caller = recording.callerChunks;
+    }
+
+    for (const [speaker, chunks] of Object.entries(sources)) {
+        const sent = recording.live.sent[speaker];
+        const newChunks = chunks.slice(sent.chunkCount);
+        let sampleCount = 0;
+        for (const chunk of newChunks) {
+            sampleCount += chunk.length;
+        }
+        if (sampleCount === 0) {
+            continue;
+        }
+
+        const liveChunk = {
+            speaker: speaker,
+            startSeconds: sent.sampleCount / 16000,
+            durationSeconds: sampleCount / 16000,
+            wav: new Blob([encodeWav(newChunks, 16000)], { type: "audio/wav" }),
+            isFinal: isFinal,
+        };
+        sent.chunkCount = chunks.length;
+        sent.sampleCount += sampleCount;
+
+        try {
+            recording.live.onLiveChunk(liveChunk);
+        } catch (error) {
+            //a broken callback must not stop the recording itself
+            console.error(error);
+        }
+    }
+}
+
 async function cleanUp(recording) {
+    stopLiveTimer(recording);
     stopTracks(recording.streams);
     for (const node of recording.nodes) {
         node.disconnect();
@@ -30,6 +80,8 @@ async function finish(recording) {
         if (recording.error !== null) {
             throw recording.error;
         }
+        //send the audio recorded since the last live chunk
+        emitLiveChunks(recording, true);
         if (recording.harmChunks.length === 0) {
             throw new Error(
                 "The microphone recording contains no audio. Check the microphone and try again.",
@@ -64,6 +116,8 @@ function requestStop(recording) {
         return;
     }
     recording.stopping = true;
+    //no new live chunks after stop, finish() sends the rest once
+    stopLiveTimer(recording);
     for (const node of recording.nodes) {
         node.port.postMessage("stop");
     }
@@ -192,10 +246,13 @@ function captureError(error, source) {
     return error;
 }
 
+// liveOptions is optional: { onLiveChunk(chunk), chunkSeconds }. Every chunkSeconds the
+// new audio of each source is passed to onLiveChunk, and the rest once after stopping.
 export async function startWavRecording(
     onUnexpectedStop,
     includeCaller = false,
     microphoneDeviceId,
+    liveOptions,
 ) {
     if (activeRecording !== null) {
         throw new Error("A recording is already running.");
@@ -215,6 +272,7 @@ export async function startWavRecording(
         finishedPromise: null,
         harmChunks: [],
         includeCaller: includeCaller,
+        live: null,
         nodes: [],
         onUnexpectedStop: onUnexpectedStop,
         rejectFinished: null,
@@ -288,6 +346,22 @@ export async function startWavRecording(
                     );
                 }
             }
+        }
+        if (liveOptions && typeof liveOptions.onLiveChunk === "function") {
+            recording.live = {
+                onLiveChunk: liveOptions.onLiveChunk,
+                sent: {
+                    harm: { chunkCount: 0, sampleCount: 0 },
+                    caller: { chunkCount: 0, sampleCount: 0 },
+                },
+                timer: null,
+            };
+            const chunkSeconds = liveOptions.chunkSeconds || 5;
+            recording.live.timer = setInterval(function () {
+                if (!recording.stopping) {
+                    emitLiveChunks(recording, false);
+                }
+            }, chunkSeconds * 1000);
         }
     } catch (error) {
         await cleanUp(recording);

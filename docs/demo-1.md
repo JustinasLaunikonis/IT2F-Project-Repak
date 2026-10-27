@@ -12,9 +12,9 @@ Before starting, make sure the program is installed via the install.bat file
 10.	Click Start recording.
 11.	When Windows asks what to share, choose Entire Screen and tick Share system audio.
 12.	Start playing caller.wav.
-13.	Harm reads the Technician lines into the microphone.
+13.	Harm reads the Technician lines into the microphone. Show that Harm and Caller lines appear in the Call transcript a few seconds after they are spoken.
 14.	When finished, click Stop recording.
-15.	Wait for Processing to finish.
+15.	Wait for Processing to finish. The last few seconds of the call are added to the transcript.
 16.	Show the Call transcript and Transcription Model Info.
 17.	Fill in any missing details.
 18.	Click Generate.

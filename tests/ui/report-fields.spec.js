@@ -1,6 +1,7 @@
 const { test, expect } = require("@playwright/test");
 
-const transcript = "Caller: Our machine RP-204 displays E204. Restarting did not help.";
+const spokenText = "Our machine RP-204 displays E204. Restarting did not help.";
+const transcript = "[00:00:00] Harm: " + spokenText;
 
 test.beforeEach(async function ({ page }) {
     await page.route("**/report-models", route => route.fulfill({
@@ -16,9 +17,14 @@ test.beforeEach(async function ({ page }) {
     await page.route("**/static/recorder.js", route => route.fulfill({
         contentType: "text/javascript",
         body: `
-            export async function startWavRecording() {}
+            let live = null;
+            export async function startWavRecording(onStop, includeCaller, microphone, liveOptions) {
+                live = liveOptions;
+            }
             export async function stopWavRecording() {
-                return { harm: new Blob(["test recording"], { type: "audio/wav" }) };
+                const wav = new Blob(["test recording"], { type: "audio/wav" });
+                live.onLiveChunk({ speaker: "harm", startSeconds: 0, durationSeconds: 1, wav, isFinal: true });
+                return { harm: wav };
             }
         `,
     }));
@@ -30,22 +36,50 @@ test.beforeEach(async function ({ page }) {
             kind: "audioinput", label: "Test microphone", deviceId: "test-microphone",
         }];
     });
-    await page.route("**/transcribe", route => route.fulfill({
+    await page.route("**/transcribe-chunk", route => route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
-            text: transcript,
-            transcription_info: { Harm: { model: "small", device: "cpu" } },
+            segments: [{ speaker: "Harm", start: 0, end: 1, text: spokenText }],
+            language: "en",
+            model: "small",
+            device: "cpu",
         }),
+    }));
+    await page.route("**/live/end", route => route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ended: true }),
     }));
 });
 
-async function recordCall(page) {
+async function recordCall(page, expectedState = "Completed") {
     await page.locator("#list-microphones-button").click();
     await page.locator("#microphone-select").selectOption("test-microphone");
     await page.locator("#start-button").click();
     await page.locator("#stop-button").click();
-    await expect(page.locator("#activity-status")).toHaveText("Activity: Completed");
+    await expect(page.locator("#activity-status")).toHaveText("Activity: " + expectedState);
 }
+
+test("shows total GPU VRAM and a recommendation beside the existing picker", async ({ page }) => {
+    await page.route("**/report-models", route => route.fulfill({
+        json: {
+            total_vram: 8,
+            recommended: "qwen3:4b",
+            default: "qwen3:4b",
+            models: [{ name: "qwen3:4b", memory: "~6 GB VRAM", installed: true }],
+        },
+    }));
+    await page.goto("/");
+    await expect(page.getByLabel("Interpretation model")).toHaveValue("qwen3:4b");
+    await expect(page.locator("#report-model-help")).toHaveText(
+        "Total GPU VRAM: 8.0 GB. Recommended model: qwen3:4b (1 GB free for buffer).",
+    );
+});
+
+test("keeps the picker usable when GPU VRAM is unknown", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("#report-model-help")).toContainText("GPU VRAM could not be detected");
+    await expect(page.getByLabel("Interpretation model")).toBeEnabled();
+});
 
 test("only empty fields are shown and Generate exports manual values", async ({ page }) => {
     let exports = 0;
@@ -251,7 +285,9 @@ for (const failure of ["manual", "server", "malformed"]) {
             }),
         }));
         await page.goto("/");
-        await recordCall(page);
+        await recordCall(page, "Error");
+        await expect(page.locator("#retry-button")).toHaveText("Retry filling report");
+        await expect(page.locator("#retry-button")).toBeEnabled();
         await expect(page.locator("#transcript")).toHaveValue(transcript);
         await expect(page.locator('input[name="[machinenummer]"]')).toBeEnabled();
         await expect(page.getByRole("button", { name: "Generate", exact: true })).toBeEnabled();
@@ -268,6 +304,7 @@ test("a second call does not inherit the first call's fields", async ({ page }) 
     await page.goto("/");
     await recordCall(page);
     await page.locator('input[name="[klant]"]').fill("Previous customer");
+    page.once("dialog", dialog => dialog.accept());
     await recordCall(page);
     await expect(page.locator('input[name="[machinenummer]"]')).toHaveValue("");
     await expect(page.locator('input[name="[klant]"]')).toHaveValue("");

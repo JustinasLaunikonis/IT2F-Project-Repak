@@ -1,0 +1,13 @@
+{
+  "segments": [
+    {
+      "speaker": "Harm",
+      "start": 0.4,
+      "end": 3.2,
+      "text": "test call: the packing machine reports alarm TEST-43. Please review the recording before exporting this report."
+    }
+  ],
+  "language": "en",
+  "model": "small",
+  "device": "cpu"
+}

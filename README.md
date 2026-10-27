@@ -2,65 +2,16 @@
 
 ## Set up and run on Windows
 
-1. Install [Python 3.11 or newer](https://www.python.org/downloads/windows/). During installation, select **Add python.exe to PATH**.
-2. Download this project and unzip it to a folder on this computer. Keep all project files together.
-3. With an internet connection, double-click `install.bat` in that folder. It creates a private Python environment, installs the required packages, and downloads the Whisper model. If CUDA is detected, it also downloads the smaller CPU model in case GPU loading fails. The first installation can take several minutes and requires space for the packages and models. Wait for **Installation completed successfully**.
-4. Install [Ollama](https://ollama.com/download) and leave it running.
-5. Open PowerShell in the project folder and download the report model:
+Use Windows 10 or 11 (64-bit x64), an internet connection for installation,
+several gigabytes of free disk space, and a microphone. **Google Chrome is
+the only supported browser.** `install.bat` installs Chrome if it is missing.
 
-    ```powershell
-    ollama pull qwen3:4b
-    ```
+1. Download this project and unzip it to a folder you can write to. Keep all project files together.
+2. Double-click `install.bat`.
+3. Double-click `run.bat`.
 
-6. Double-click `run.bat`. Leave its window open. Open [http://127.0.0.1:8000](http://127.0.0.1:8000) in a browser on the same computer. Press **Ctrl+C** in the window to stop the application.
+For later runs, use only `run.bat`.
 
-For later runs, use only `run.bat`. If installation stops with an error, read the message in its window and run `install.bat` again after fixing the problem. The model download needs internet during installation; audio processing is local. The current browser page is a local application preview. The full recording and transcription flow is still being developed.
-
-## Prepare the application for offline use
-
-Complete these one-time downloads while the computer is connected to the
-internet:
-
-1. Install Python 3.11 or newer.
-2. Download and unzip this project.
-3. Run `install.bat`. It creates `.venv`, installs the Python packages from
-   `requirements.txt`, and stores the Whisper model in the local Hugging Face
-   cache.
-4. If the computer will use an NVIDIA GPU, install the compatible NVIDIA
-   driver, CUDA 12 cuBLAS, and CUDA 12 cuDNN 9. These are not needed for the
-   CPU fallback.
-5. Open the application once with `run.bat` and confirm that
-   [http://127.0.0.1:8000](http://127.0.0.1:8000) loads.
-
-Keep the project folder, its `.venv` folder, and the downloaded model cache on
-the computer. After this setup, `run.bat`, recording, transcription, and DOCX
-export do not need an internet connection. Whisper is opened with
-`local_files_only=True`, so it will report an error instead of downloading a
-missing model during transcription.
-
-### Verify the complete workflow without a network connection
-
-1. Finish the one-time setup above, close the application, and turn off Wi-Fi
-   and any wired network connection.
-2. Double-click `run.bat` and open
-   [http://127.0.0.1:8000](http://127.0.0.1:8000).
-3. Select a microphone, record a short test call, stop the recording, listen
-   to it, and download `harm.wav`. Download `caller.wav` too if caller audio
-   was enabled.
-4. In PowerShell, transcribe each downloaded recording locally:
-
-    ```powershell
-    .\.venv\Scripts\python.exe whisper_demo.py "C:\path\to\harm.wav"
-    .\.venv\Scripts\python.exe whisper_demo.py "C:\path\to\caller.wav"
-    ```
-
-5. Copy the transcript into the **transcriptie** field in the browser, fill in
-   the other required call details, and save the generated DOCX report.
-6. Open the DOCX and confirm that it contains the transcript and call details.
-
-The current interface does not send recordings directly to Whisper. The two
-local transcription commands are therefore a manual step in this offline
-verification cycle.
 
 ## Run local Whisper transcription
 
@@ -92,13 +43,6 @@ Remove the overrides with `Remove-Item Env:WHISPER_DEVICE, Env:WHISPER_MODEL`.
 If CUDA is unavailable or its libraries fail to load, the command warns and
 uses the CPU. A model override remains in effect during that fallback.
 
-GPU inference requires a compatible NVIDIA driver, [CUDA 12 cuBLAS and CUDA 12
-cuDNN 9](https://github.com/SYSTRAN/faster-whisper#gpu). On Windows, install
-these libraries separately and add their DLL directories to `PATH` before
-starting Python. The `nvidia-*` packages in `requirements.txt` apply only to
-Linux, as faster-whisper documents their pip installation for Linux. On Linux,
-set `LD_LIBRARY_PATH` to the installed cuBLAS and cuDNN library directories
-before starting Python. CPU transcription does not require these GPU libraries.
 
 ### Test the WAV upload endpoint
 
@@ -107,12 +51,53 @@ file on your computer and upload it:
 
 ```powershell
 $audioFile = "C:\Path\To\recording.wav"
-curl.exe -X POST http://127.0.0.1:8000/transcribe -F "file=@$audioFile"
+curl.exe -X POST http://127.0.0.1:8000/transcribe -F "harm=@$audioFile"
 ```
 
-A successful request returns JSON such as `{"text":"Hello, this is a test."}`.
-The file is processed locally. Browser recording and upload integration are
-still being developed.
+A successful request returns JSON containing `text`, `segments`, and
+`transcription_info`. The file is processed locally. Recording in the browser
+page uses live transcription (below) instead of this endpoint.
+
+### Upload an audio file in the browser page
+
+Under **Or upload an audio file**, choose a WAV file for the microphone (Harm)
+and, optionally, a separate caller WAV file, then click **Transcribe file**.
+The page sends the files to `POST /transcribe`, shows the transcript, and fills
+the report in the same way as after a recording. If transcription or report
+filling fails, click **Retry** to try that step again. Text from the Harm file
+is labelled `Harm`, so a single file that contains both speakers is labelled
+`Harm` throughout. The call date fields stay empty for manual entry, because
+the time of an uploaded call is not known.
+
+### Live transcription while recording
+
+While recording, the page sends the newest audio of each source to
+`POST /transcribe-chunk` about every 5 seconds, and the remaining audio once
+after Stop. Each request is multipart form data with `audio` (16 kHz mono WAV),
+`speaker` (`harm` or `caller`), `start_seconds` (where the chunk starts in the
+whole recording) and `session_id`. The response contains `segments` with
+`speaker`, `start`, `end` and `text`, with times already counted from the start
+of the recording, plus `language`, `model` and `device`:
+
+```powershell
+curl.exe -X POST http://127.0.0.1:8000/transcribe-chunk -F "audio=@$audioFile" -F "speaker=harm" -F "start_seconds=0" -F "session_id=test"
+```
+
+The server keeps one Whisper model loaded during a call. After Stop the page
+calls `POST /live/end` with `{"session_id": "..."}`, which unloads the model
+before the report model runs. If a page disappears without calling it, the model
+is unloaded after 60 seconds without audio.
+
+Live text is final: the recording is not transcribed again after Stop. A chunk
+that fails is marked in the transcript and tried once more automatically after
+Stop. If it still fails, click Retry transcription to send only the failed chunks
+again; successful text is kept and each marker is replaced by its text. Words cut
+at the edge of a chunk can be split or slightly wrong.
+
+The language is detected per speaker from the first chunks with speech, limited
+to English, Dutch and German. When detection is not sure, English is used, and
+after three unsure chunks English is kept for the rest of the call.
+`WHISPER_LANGUAGE` still overrides detection.
 
 ## Run the browser tests
 
@@ -131,7 +116,7 @@ The record-to-export test uses Chromium's fake microphone with
 `--use-fake-device-for-media-stream` and `--use-fake-ui-for-media-stream`,
 and grants microphone permission in its test context. It records through
 browser audio APIs, replaces only
-the `/transcribe` response with synthetic fixture JSON, checks the completed
+the `/transcribe-chunk` response with synthetic fixture JSON, checks the completed
 state and transcript, and downloads a DOCX from the real `/export` endpoint.
 No physical microphone, Whisper model download, or GPU is needed for this
 test. It checks browser integration, not Whisper transcription accuracy.

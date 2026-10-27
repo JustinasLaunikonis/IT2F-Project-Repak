@@ -1,15 +1,31 @@
 // noinspection RedundantIfStatementJS
 
 import { startWavRecording, stopWavRecording } from "./recorder.js"; //these functions come from recorder.js
+import {
+    addFailureMarker,
+    addSegments,
+    formatTimestamp,
+    formatTranscript,
+    hasSpokenText,
+    replaceFailureMarker,
+} from "./live-transcript.js";
 
 const activityStatus = document.getElementById("activity-status");
 const activityMessage = document.getElementById("activity-message");
 const connectionStatus = document.getElementById("connection-status");
 const transcript = document.getElementById("transcript");
 const transcriptionInfo = document.getElementById("transcription-info");
+const liveLag = document.getElementById("live-lag");
+const liveError = document.getElementById("live-error");
 
 const startButton = document.getElementById("start-button");
 const stopButton = document.getElementById("stop-button");
+const retryButton = document.getElementById("retry-button");
+
+const uploadHarmInput = document.getElementById("upload-harm-file");
+const uploadCallerInput = document.getElementById("upload-caller-file");
+const uploadButton = document.getElementById("upload-button");
+const uploadError = document.getElementById("upload-error");
 
 const stateTester = document.querySelector(".state-tester");
 const testIdleButton = document.getElementById("test-idle");
@@ -25,6 +41,8 @@ const harmPreview = document.getElementById("harm-preview");
 const callerPreview = document.getElementById("caller-preview");
 const harmDownload = document.getElementById("harm-download");
 const callerDownload = document.getElementById("caller-download");
+const harmSaveControls = findSaveControls("harm", harmDownload);
+const callerSaveControls = findSaveControls("caller", callerDownload);
 const missingDetails = document.getElementById("missing-details-form");
 const missingDetailsSubmitButton = document.getElementById(
     "missing-details-submit-button",
@@ -46,6 +64,34 @@ let callerUrl = null;
 let recordingSessionActive = false; //prevents second recording session from being started
 let stopRequested = false; //prevents stop from being requested more than once
 let recordingStartedAt = null;
+let callLoadedBefore = false;
+let savedRecording = null;
+let savedCallSource = null;
+let savedTranscript = null;
+let savedLiveSession = null; //live chunks of the saved recording, used for retries
+let retryStep = null;
+let processingCall = false; //prevents processing the same call more than once at the time
+
+function updateRetryButton() {
+    const canRetry = savedRecording !== null && retryStep !== null;
+
+    retryButton.hidden = !canRetry;
+
+    //dont allow retry while recording or processing
+    retryButton.disabled = processingCall || recordingSessionActive;
+
+    if (retryStep === "transcription") {
+        retryButton.textContent = "Retry transcription";
+    } else if (retryStep === "report") {
+        retryButton.textContent = "Retry filling report";
+    }
+}
+
+// Audio is sent for live transcription in pieces of this many seconds.
+const liveChunkSeconds = 5;
+// Tell the user when the live transcript falls this far behind the recording.
+const liveLagWarningSeconds = 15;
+let liveSession = null;
 
 async function loadReportModels() {
     try {
@@ -61,8 +107,15 @@ async function loadReportModels() {
             reportModelSelect.appendChild(option);
         }
         reportModelSelect.value = result.default;
+        if (result.total_vram == null) {
+            reportModelHelp.textContent = "GPU VRAM could not be detected. No model size recommendation available.";
+        } else {
+            const recommendation = result.recommended || "None";
+            reportModelHelp.textContent = `Total GPU VRAM: ${result.total_vram.toFixed(1)} GB. Recommended model: ${recommendation} (1 GB free for buffer).`;
+        }
     } catch (error) {
         reportModelSelect.value = "none";
+        reportModelHelp.textContent = "Model information could not be loaded.";
     } finally {
         reportModelSelect.disabled = false;
     }
@@ -195,7 +248,10 @@ showMissingDetails();
 
 function fillCallDate(date) {
     const day = date.toLocaleDateString("en-GB").replaceAll("/", "-");
-    const time = date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+    const time = date.toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+    });
     callDetails["[datum]"] = day;
     callDetails["[datum / tijd]"] = `${day} / ${time}`;
 }
@@ -207,13 +263,22 @@ async function fillReportFromTranscript(text) {
     missingDetailsSubmitButton.disabled = true;
     transcript.readOnly = true;
     try {
-        const response = await fetch("/extract-report", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ transcript: text, model: reportModelSelect.value }),
-        });
-        if (!response.ok) {
-            throw new Error("Automatic filling failed. Complete the remaining details manually.");
+        //reuse successful live chunks, a transcription retry sends only the failed chunks
+        if (savedTranscript === null || retryStep === "transcription") {
+            retryStep = "transcription";
+
+            if (savedCallSource === "upload") {
+                activityMessage.textContent =
+                    "Transcribing the uploaded audio. Long files can take several minutes.";
+
+                savedTranscript = await transcribeUploadedAudio(savedRecording);
+            } else {
+                activityMessage.textContent = "Finishing the live transcript";
+
+                savedTranscript = await finishLiveTranscript(savedLiveSession);
+            }
+
+            callDetails["[transcriptie]"] = savedTranscript;
         }
         const result = await response.json();
         for (const [key, value] of Object.entries(result.fields)) {
@@ -222,9 +287,38 @@ async function fillReportFromTranscript(text) {
                 callDetails[key] = value;
             }
         }
-        return result.warning;
+
+        retryStep = null;
+
+        if (savedCallSource === "upload") {
+            showState("completed");
+            activityMessage.textContent = message;
+        } else {
+            if (savedLiveSession.failedChunks.length > 0) {
+                retryStep = "transcription";
+            }
+
+            showState("completed");
+            activityMessage.textContent = completedMessage(savedLiveSession, message);
+        }
     } catch (error) {
-        return "Automatic filling is unavailable. Complete the remaining details manually.";
+        let message;
+
+        if (retryStep === "transcription" && savedCallSource === "upload") {
+            message =
+                "Transcription of the uploaded file failed. " +
+                "Click Retry transcription to try again.";
+        } else if (retryStep === "transcription") {
+            message =
+                "Transcription failed. Your recording is still available. " +
+                "Click Retry transcription.";
+        } else {
+            message =
+                "The report could not be filled. Your recording and " +
+                "transcript are still available. Click Retry filling report.";
+        }
+
+        showError(message + " " + error.message);
     } finally {
         extractFieldsButton.disabled = false;
         reportModelSelect.disabled = false;
@@ -234,12 +328,97 @@ async function fillReportFromTranscript(text) {
     }
 }
 
+retryButton.addEventListener("click", async function () {
+    await processSavedRecording();
+});
+
+function savedCallHasSpeech() {
+    if (savedCallSource === "upload") {
+        return savedTranscript.trim() !== "";
+    }
+
+    return hasSpokenText(savedLiveSession.entries);
+}
+
+function setUploadControlsDisabled(disabled) {
+    uploadHarmInput.disabled = disabled;
+    uploadCallerInput.disabled = disabled;
+    uploadButton.disabled = disabled;
+}
+
+function showUploadError(message) {
+    uploadError.textContent = message;
+    uploadError.hidden = false;
+}
+
+function hideUploadError() {
+    uploadError.textContent = "";
+    uploadError.hidden = true;
+}
+
+function getChosenFile(fileInput) {
+    if (fileInput.files.length === 0) {
+        return null;
+    }
+
+    return fileInput.files[0];
+}
+
+function isWavFile(file) {
+    const fileName = file.name.toLowerCase();
+
+    if (fileName.endsWith(".wav")) {
+        return true;
+    }
+
+    return false;
+}
+
+async function transcribeUploadedAudio(files) {
+    const formData = new FormData();
+    formData.append("harm", files.harm, files.harm.name);
+
+    if (files.caller !== undefined) {
+        formData.append("caller", files.caller, files.caller.name);
+    }
+
+    let response;
+
+    try {
+        response = await fetch("/transcribe", {
+            method: "POST",
+            body: formData,
+        });
+    } catch {
+        throw new Error(
+            "The audio file could not be uploaded. " +
+                "Check that the file still exists and that the server is running.",
+        );
+    }
+
+    if (!response.ok) {
+        throw new Error(await readServerError(response, "this file"));
+    }
+
+    const result = await response.json();
+
+    transcript.value = result.text;
+    showTranscriptionInfo(result.transcription_info);
+
+    return result.text;
+}
+
 async function submitCallData() {
-    if (recordingSessionActive) {
+    if (recordingSessionActive || processingCall) {
         return;
     }
+
+    processingCall = true;
+    updateRetryButton();
+
     missingDetailsSubmitButton.disabled = true;
     startButton.disabled = true;
+    setUploadControlsDisabled(true);
 
     try {
         const docxGeneratorResponse = await fetch("/export", {
@@ -272,12 +451,159 @@ async function submitCallData() {
     } catch (error) {
         alert(error.message);
     } finally {
+        processingCall = false;
         missingDetailsSubmitButton.disabled = false;
         startButton.disabled = false;
+        setUploadControlsDisabled(false);
+        updateRetryButton();
     }
 }
 
 missingDetailsSubmitButton.addEventListener("click", submitCallData);
+
+function findSaveControls(prefix, downloadLink) {
+    const controls = {
+        defaultName: prefix,
+        downloadLink: downloadLink,
+        saveButton: document.getElementById(prefix + "-save-button"),
+        panel: document.getElementById(prefix + "-save-panel"),
+        fileNameInput: document.getElementById(prefix + "-filename"),
+        confirmButton: document.getElementById(prefix + "-save-confirm"),
+        cancelButton: document.getElementById(prefix + "-save-cancel"),
+        errorMessage: document.getElementById(prefix + "-filename-error"),
+    };
+
+    return controls;
+}
+
+function isForbiddenFileNameCharacter(character) {
+    const forbiddenCharacters = "<>:\"/\\|?*";
+
+    if (forbiddenCharacters.includes(character)) {
+        return true;
+    }
+
+    if (character.charCodeAt(0) < 32) {
+        return true;
+    }
+
+    return false;
+}
+ 
+function trimDotsAndSpaces(name) {
+    let start = 0;
+    let end = name.length;
+
+    while (start < end && (name[start] === "." || name[start] === " ")) {
+        start++;
+    }
+
+    while (end > start && (name[end - 1] === "." || name[end - 1] === " ")) {
+        end--;
+    }
+
+    return name.slice(start, end);
+}
+
+function cleanAudioFileName(typedName) {
+    const maximumLength = 100;
+    let name = typedName.trim();
+
+    let safeName = "";
+    for (const character of name) {
+        if (isForbiddenFileNameCharacter(character)) {
+            safeName = safeName + "-";
+        } else {
+            safeName = safeName + character;
+        }
+    }
+    name = trimDotsAndSpaces(safeName);
+
+    if (name.length > maximumLength) {
+        name = name.slice(0, maximumLength);
+        name = trimDotsAndSpaces(name);
+    }
+
+    while (name.toLowerCase().endsWith(".wav")) {
+        name = name.slice(0, name.length - ".wav".length);
+        name = trimDotsAndSpaces(name);
+    }
+
+    return name;
+}
+
+function showFileNameError(controls, message) {
+    controls.errorMessage.textContent = message;
+    controls.errorMessage.hidden = false;
+}
+
+function hideFileNameError(controls) {
+    controls.errorMessage.textContent = "";
+    controls.errorMessage.hidden = true;
+}
+
+function openSavePanel(controls) {
+    hideFileNameError(controls);
+    controls.saveButton.hidden = true;
+    controls.panel.hidden = false;
+
+    controls.fileNameInput.focus();
+    controls.fileNameInput.select();
+}
+
+function closeSavePanel(controls) {
+    hideFileNameError(controls);
+    controls.panel.hidden = true;
+    controls.saveButton.hidden = false;
+
+    controls.saveButton.focus();
+}
+
+function downloadAudio(controls) {
+    const fileName = cleanAudioFileName(controls.fileNameInput.value);
+
+    if (fileName === "") {
+        showFileNameError(controls, "Enter a file name before downloading.");
+        return;
+    }
+
+    controls.downloadLink.download = fileName + ".wav";
+    controls.downloadLink.click();
+
+    closeSavePanel(controls);
+}
+
+function resetSaveControls(controls) {
+    controls.panel.hidden = true;
+    controls.saveButton.hidden = false;
+    hideFileNameError(controls);
+    controls.fileNameInput.value = controls.defaultName;
+    controls.downloadLink.download = controls.defaultName + ".wav";
+}
+
+function setUpSaveControls(controls) {
+    controls.saveButton.addEventListener("click", function () {
+        openSavePanel(controls);
+    });
+
+    controls.confirmButton.addEventListener("click", function () {
+        downloadAudio(controls);
+    });
+
+    controls.cancelButton.addEventListener("click", function () {
+        closeSavePanel(controls);
+    });
+
+    controls.fileNameInput.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+            event.preventDefault();
+            downloadAudio(controls);
+        }
+    });
+}
+
+setUpSaveControls(harmSaveControls);
+setUpSaveControls(callerSaveControls);
 
 function clearRecordingReview() {
     recordingReview.hidden = true;
@@ -286,6 +612,8 @@ function clearRecordingReview() {
     callerPreview.removeAttribute("src");
     harmDownload.removeAttribute("href");
     callerDownload.removeAttribute("href");
+    resetSaveControls(harmSaveControls);
+    resetSaveControls(callerSaveControls);
 
     if (harmUrl !== null) {
         URL.revokeObjectURL(harmUrl);
@@ -313,35 +641,211 @@ function showRecordingReview(files) {
     recordingReview.hidden = false;
 }
 
-async function transcribeRecording(files) {
-    const formData = new FormData();
+function showUploadedAudioReview(files) {
+    showRecordingReview(files);
 
-    formData.append("harm", files.harm, "harm.wav"); //add harm's mic recording
+    harmSaveControls.saveButton.hidden = true;
+    callerSaveControls.saveButton.hidden = true;
+}
 
-    if (files.caller !== undefined) {
-        formData.append("caller", files.caller, "caller.wav");
+function createLiveSessionId() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+        return window.crypto.randomUUID();
     }
+    return Date.now() + "-" + Math.random().toString(16).slice(2);
+}
+
+function startLiveSession() {
+    liveSession = {
+        id: createLiveSessionId(),
+        entries: [], //transcript lines and failure markers in spoken order
+        info: {}, //Whisper model and device per speaker
+        queue: Promise.resolve(), //chunks are sent one after another
+        pendingChunks: [],
+        failedChunks: [],
+        nextChunkId: 1,
+        recordedSeconds: 0,
+    };
+    liveLag.hidden = true;
+    liveError.hidden = true;
+    liveError.textContent = "";
+    return liveSession;
+}
+
+async function sendLiveChunk(session, chunk) {
+    const formData = new FormData();
+    formData.append("audio", chunk.wav, "chunk.wav");
+    formData.append("speaker", chunk.speaker);
+    formData.append("start_seconds", String(chunk.startSeconds));
+    formData.append("session_id", session.id);
 
     let response;
 
     try {
-        response = await fetch("/transcribe", {
+        response = await fetch("/transcribe-chunk", {
             method: "POST",
             body: formData,
         });
     } catch {
         //fetch only throws when the request never reached the server
-        throw new Error(
-            "The recording could not be uploaded. Check that the server is running and press Start again.",
-        );
+        throw new Error("The audio could not be uploaded. Check that the server is running.");
     }
 
     if (!response.ok) {
-        throw new Error(await readServerError(response));
+        throw new Error(await readServerError(response, "this part"));
     }
 
     const result = await response.json();
+    const speaker = chunk.speaker === "harm" ? "Harm" : "Caller";
+    session.info[speaker] = { model: result.model, device: result.device };
     return result;
+}
+
+function showLiveTranscript(session) {
+    //ignore late answers that belong to an earlier recording
+    if (session !== liveSession) {
+        return;
+    }
+
+    transcript.value = formatTranscript(session.entries);
+    transcript.scrollTop = transcript.scrollHeight;
+
+    //keep Harm before Caller, like the transcription info after recording
+    const info = {};
+    for (const speaker of ["Harm", "Caller"]) {
+        if (session.info[speaker] !== undefined) {
+            info[speaker] = session.info[speaker];
+        }
+    }
+    if (Object.keys(info).length > 0) {
+        showTranscriptionInfo(info);
+    }
+}
+
+function showLiveLag(session) {
+    if (session !== liveSession) {
+        return;
+    }
+
+    let behindSeconds = 0;
+    for (const chunk of session.pendingChunks) {
+        behindSeconds = Math.max(behindSeconds, session.recordedSeconds - chunk.startSeconds);
+    }
+
+    if (behindSeconds >= liveLagWarningSeconds) {
+        liveLag.textContent =
+            "The live transcript is about " +
+            Math.round(behindSeconds) +
+            " seconds behind the recording.";
+        liveLag.hidden = false;
+    } else {
+        liveLag.hidden = true;
+    }
+}
+
+function showLiveError(session, chunk, error) {
+    if (session !== liveSession) {
+        return;
+    }
+
+    const speaker = chunk.speaker === "harm" ? "Harm" : "Caller";
+    const end = chunk.startSeconds + chunk.durationSeconds;
+    liveError.textContent =
+        speaker +
+        "'s audio from " +
+        formatTimestamp(chunk.startSeconds) +
+        " to " +
+        formatTimestamp(end) +
+        " could not be transcribed. " +
+        error.message.replace(/([^.!?])$/, "$1.") + //server details have no full stop
+        " The recording continues, and this part is tried again after you stop.";
+    liveError.hidden = false;
+}
+
+// Called by the recorder for every new piece of audio, also while recording.
+function queueLiveChunk(session, chunk) {
+    chunk.id = session.nextChunkId;
+    session.nextChunkId++;
+    session.pendingChunks.push(chunk);
+    session.recordedSeconds = Math.max(
+        session.recordedSeconds,
+        chunk.startSeconds + chunk.durationSeconds,
+    );
+    showLiveLag(session);
+
+    session.queue = session.queue.then(async function () {
+        try {
+            const result = await sendLiveChunk(session, chunk);
+            addSegments(session.entries, result.segments);
+        } catch (error) {
+            //keep the text received so far and mark the missing part
+            session.failedChunks.push(chunk);
+            addFailureMarker(session.entries, chunk);
+            showLiveError(session, chunk, error);
+        } finally {
+            session.pendingChunks.splice(session.pendingChunks.indexOf(chunk), 1);
+            showLiveTranscript(session);
+            showLiveLag(session);
+        }
+    });
+}
+
+function endLiveSession(session) {
+    if (session === null) {
+        return Promise.resolve();
+    }
+    //lets the server unload Whisper, for example before the report model runs
+    return fetch("/live/end", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: session.id }),
+    }).catch(function () {
+        //the server also unloads the model after a minute without audio
+    });
+}
+
+// Wait for the last chunks, retry failed chunks once, and return the final text.
+async function finishLiveTranscript(session) {
+    let queue;
+    do {
+        queue = session.queue;
+        await queue;
+    } while (queue !== session.queue);
+
+    const retries = session.failedChunks;
+    session.failedChunks = [];
+    for (const chunk of retries) {
+        try {
+            const result = await sendLiveChunk(session, chunk);
+            replaceFailureMarker(session.entries, chunk.id, result.segments);
+        } catch {
+            session.failedChunks.push(chunk);
+        }
+    }
+
+    if (session.failedChunks.length === 0) {
+        liveError.hidden = true;
+    }
+    showLiveTranscript(session);
+    await endLiveSession(session);
+    return formatTranscript(session.entries);
+}
+
+function completedMessage(session, warning) {
+    let message =
+        warning ?? "Call processed. Fill in any remaining details, then click Generate.";
+    const failures = session.failedChunks.length;
+    if (failures === 1) {
+        message =
+            "1 part of the recording could not be transcribed and is marked in the transcript. " +
+            message;
+    } else if (failures > 1) {
+        message =
+            failures +
+            " parts of the recording could not be transcribed and are marked in the transcript. " +
+            message;
+    }
+    return message;
 }
 
 function showTranscriptionInfo(info) {
@@ -350,8 +854,7 @@ function showTranscriptionInfo(info) {
     const lines = [];
 
     for (const [speaker, details] of channels) {
-        const deviceLabel =
-            details.device === "cuda" ? "GPU (CUDA)" : "CPU";
+        const deviceLabel = details.device === "cuda" ? "GPU (CUDA)" : "CPU";
         const modelLabel =
             details.model.charAt(0).toUpperCase() + details.model.slice(1);
         const channelLabel = showChannelNames ? `${speaker}: ` : "";
@@ -359,8 +862,7 @@ function showTranscriptionInfo(info) {
         lines.push(`${channelLabel}${deviceLabel}, Size: ${modelLabel}`);
     }
 
-    transcriptionInfo.textContent =
-        `Transcription Model Info: ${lines.join(" | ")}`;
+    transcriptionInfo.textContent = `Transcription Model Info: ${lines.join(" | ")}`;
     transcriptionInfo.hidden = false;
 }
 
@@ -370,7 +872,8 @@ function clearTranscriptionInfo() {
 }
 
 //build a readable message from a failed server response
-async function readServerError(response) {
+//audioDescription is "this part" for a live chunk or "this file" for an upload
+async function readServerError(response, audioDescription) {
     let detail = "";
 
     try {
@@ -383,7 +886,9 @@ async function readServerError(response) {
     }
 
     let message =
-        "The server could not transcribe the recording (error " +
+        "The server could not transcribe " +
+        audioDescription +
+        " (error " +
         response.status +
         ").";
     if (detail !== "") {
@@ -408,6 +913,10 @@ function resetRecordingControls() {
 
     microphoneSelect.disabled = false;
     listMicrophonesButton.disabled = false;
+
+    setUploadControlsDisabled(false);
+
+    updateRetryButton();
 }
 
 function showError(message) {
@@ -415,21 +924,52 @@ function showError(message) {
     activityMessage.textContent = message;
 }
 
-function handleUnexpectedStop(error, files) {
-    clearTranscriptionInfo();
+async function handleUnexpectedStop(error, files) {
+    const session = liveSession;
+    //Stop cannot be used while the last live chunks are finished
+    stopRequested = true;
+    stopButton.disabled = true;
+
+    if (error !== null || session === null) {
+        clearTranscriptionInfo();
+        endLiveSession(session);
+    } else {
+        callDetails["[transcriptie]"] = await finishLiveTranscript(session);
+    }
     resetRecordingControls();
 
     if (error !== null) {
         showError(error.message);
-    } else {
-        showRecordingReview(files);
-        showState("idle");
-        activityMessage.textContent =
-            "An audio source disconnected. Review the available recording before downloading.";
+        return;
     }
+
+    savedRecording = files;
+    savedCallSource = "recording";
+    savedLiveSession = session;
+    savedTranscript = null;
+    retryStep = "transcription";
+
+    showRecordingReview(files);
+
+    showError(
+        "An audio source disconnected. Review the available recording, " +
+            "then click Retry transcription to process it",
+    );
+
+    updateRetryButton();
 }
 
 window.addEventListener("pagehide", clearRecordingReview);
+
+window.addEventListener("pagehide", function () {
+    //closing the tab while recording, let the server unload Whisper straight away
+    if (recordingSessionActive && liveSession !== null) {
+        const body = new Blob([JSON.stringify({ session_id: liveSession.id })], {
+            type: "application/json",
+        });
+        navigator.sendBeacon("/live/end", body);
+    }
+});
 
 //show test activity controls only when the URL includes ?debug=true
 const urlParameters = new URLSearchParams(window.location.search);
@@ -487,7 +1027,7 @@ testErrorButton.addEventListener("click", function () {
 
 // Start capture after the user allows access to the selected audio sources.
 startButton.addEventListener("click", async function () {
-    if (recordingSessionActive === true) {
+    if (recordingSessionActive || processingCall) {
         return;
     }
 
@@ -498,11 +1038,23 @@ startButton.addEventListener("click", async function () {
         return;
     }
 
+    //ask before replacing the previous recording
+    if (savedRecording !== null) {
+        const replaceRecording = window.confirm(
+            "Starting a new recording replaces the saved call. " +
+                "Save the current audio first if you want to keep it. " +
+                "Continue?",
+        );
+
+        if (!replaceRecording) {
+            return;
+        }
+    }
+
     recordingSessionActive = true;
     stopRequested = false;
+    updateRetryButton();
     missingDetailsSubmitButton.disabled = true;
-    clearRecordingReview();
-    clearTranscriptionInfo();
 
     startButton.disabled = true;
     stopButton.disabled = true;
@@ -512,25 +1064,50 @@ startButton.addEventListener("click", async function () {
     microphoneSelect.disabled = true;
     listMicrophonesButton.disabled = true;
 
+    setUploadControlsDisabled(true);
+    hideUploadError();
+
     activityMessage.textContent = "Please allow microphone access";
     if (includeCaller.checked) {
         activityMessage.textContent =
             "Choose Entire Screen, enable Share system audio, and allow microphone access";
     }
 
+    //a saved call can still be retried if the new recording does not start
+    const previousSession = liveSession;
+    const session = startLiveSession();
+
     try {
-        //try to start recorder
+        //try to start recorder, new audio is transcribed every few seconds
         await startWavRecording(
             handleUnexpectedStop,
             includeCaller.checked,
             selectedMicrophoneId,
+            {
+                onLiveChunk: function (chunk) {
+                    queueLiveChunk(session, chunk);
+                },
+                chunkSeconds: liveChunkSeconds,
+            },
         );
 
-        if (recordingStartedAt !== null) {
+        //clear the previous call only afrer when recording starts
+        savedRecording = null;
+        savedCallSource = null;
+        savedTranscript = null;
+        savedLiveSession = null;
+        retryStep = null;
+
+        clearRecordingReview();
+        clearTranscriptionInfo();
+        updateRetryButton();
+
+        if (callLoadedBefore) {
             // Each new recording gets its own report, not values from the previous call.
             Object.assign(callDetails, JSON.parse(jsonStringTemplate));
-            transcript.value = "";
         }
+        callLoadedBefore = true;
+        transcript.value = "";
         recordingStartedAt = new Date();
         fillCallDate(recordingStartedAt);
         showMissingDetails();
@@ -541,14 +1118,20 @@ startButton.addEventListener("click", async function () {
 
         showState("recording");
     } catch (error) {
+        liveSession = previousSession;
         resetRecordingControls();
+        updateRetryButton();
         showError(error.message);
     }
 });
 
 // Stop capture and let the user review audio before choosing to download it.
 stopButton.addEventListener("click", async function () {
-    if (recordingSessionActive === false || stopRequested === true) {
+    if (
+        recordingSessionActive === false ||
+        stopRequested === true ||
+        processingCall
+    ) {
         return;
     }
 
@@ -557,35 +1140,116 @@ stopButton.addEventListener("click", async function () {
     missingDetailsSubmitButton.disabled = true;
 
     showState("processing");
+    const session = liveSession;
 
     try {
-        //stop recording and create the wav audio
+        //stop recording and create the wav audio, the last live chunks are queued now
         const files = await stopWavRecording();
 
+        //keep the audio before sending it to the server
+        savedRecording = files;
+        savedCallSource = "recording";
+        savedLiveSession = session;
+        savedTranscript = null;
+        retryStep = "transcription";
+
         showRecordingReview(files);
-
-        const transcriptionResult = await transcribeRecording(files); // upload both recordings and receive4 the combined transcript
-
-        transcript.value = transcriptionResult.text;
-        showTranscriptionInfo(transcriptionResult.transcription_info);
-
-        callDetails["[transcriptie]"] = transcriptionResult.text;
-        const warning = transcriptionResult.text.trim()
-            ? await fillReportFromTranscript(transcriptionResult.text)
-            : "No speech was transcribed. Complete the report manually.";
-        showMissingDetails();
-
         resetRecordingControls();
 
-        showState("completed");
-        activityMessage.textContent =
-            warning ?? "Call processed. Fill in any remaining details, then click Generate.";
+        //the live text is final, only the remaining and failed chunks are transcribed
+        await processSavedRecording();
     } catch (error) {
-        //reset the interface if recording cant be stopped or transcribed
+        //reset the interface if recording cant be stopped, the live text stays visible
         clearTranscriptionInfo();
+        endLiveSession(session);
         resetRecordingControls();
         showError(error.message);
+        updateRetryButton();
     }
+});
+
+function checkUploadFile(file, description) {
+    if (!isWavFile(file)) {
+        return "The " + description + " must be a WAV file.";
+    }
+
+    if (file.size === 0) {
+        return "The " + description + " is empty.";
+    }
+
+    return null;
+}
+
+uploadButton.addEventListener("click", async function () {
+    if (recordingSessionActive || processingCall) {
+        return;
+    }
+
+    hideUploadError();
+
+    const harmFile = getChosenFile(uploadHarmInput);
+    const callerFile = getChosenFile(uploadCallerInput);
+
+    if (harmFile === null) {
+        showUploadError("Choose a microphone (Harm) audio file before clicking Transcribe file.");
+        return;
+    }
+
+    const harmProblem = checkUploadFile(harmFile, "microphone (Harm) file");
+    if (harmProblem !== null) {
+        showUploadError(harmProblem);
+        return;
+    }
+
+    if (callerFile !== null) {
+        const callerProblem = checkUploadFile(callerFile, "caller file");
+        if (callerProblem !== null) {
+            showUploadError(callerProblem);
+            return;
+        }
+    }
+
+    if (savedRecording !== null) {
+        const replaceCall = window.confirm(
+            "Transcribing a file replaces the saved call. " +
+                "Save the current audio first if you want to keep it. " +
+                "Continue?",
+        );
+
+        if (!replaceCall) {
+            return;
+        }
+    }
+
+    const files = { harm: harmFile };
+    if (callerFile !== null) {
+        files.caller = callerFile;
+    }
+
+    liveSession = null;
+    liveLag.hidden = true;
+    liveError.hidden = true;
+    liveError.textContent = "";
+
+    clearRecordingReview();
+    clearTranscriptionInfo();
+
+    if (callLoadedBefore) {
+        Object.assign(callDetails, JSON.parse(jsonStringTemplate));
+    }
+    callLoadedBefore = true;
+    transcript.value = "";
+    showMissingDetails();
+
+    savedRecording = files;
+    savedCallSource = "upload";
+    savedLiveSession = null;
+    savedTranscript = null;
+    retryStep = "transcription";
+
+    showUploadedAudioReview(files);
+
+    await processSavedRecording();
 });
 
 //save the microphone selected by the user
