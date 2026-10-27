@@ -47,11 +47,11 @@ const missingDetails = document.getElementById("missing-details-form");
 const missingDetailsSubmitButton = document.getElementById(
     "missing-details-submit-button",
 );
+const extractFieldsButton = document.getElementById("extract-fields-button");
 
 const microphoneSelect = document.getElementById("microphone-select");
 const reportModelSelect = document.getElementById("report-model-select");
 const downloadModelButton = document.getElementById("download-report-model");
-const reportModelHelp = document.getElementById("report-model-help");
 const microphoneMessage = document.getElementById("microphone-message");
 const listMicrophonesButton = document.getElementById(
     "list-microphones-button",
@@ -101,7 +101,8 @@ async function loadReportModels() {
         for (const model of result.models) {
             const option = document.createElement("option");
             option.value = model.name;
-            option.textContent = `${model.name} — ${model.memory}${model.installed ? "" : " (not installed)"}`;
+            option.textContent = `${model.label}${model.installed ? "" : " (not installed)"}`;
+            option.title = model.memory;
             option.dataset.installed = model.installed;
             reportModelSelect.appendChild(option);
         }
@@ -125,6 +126,25 @@ loadReportModels();
 function showModelDownload() {
     downloadModelButton.hidden = reportModelSelect.selectedOptions[0].dataset.installed !== "false";
 }
+
+extractFieldsButton.addEventListener("click", async () => {
+    if (recordingSessionActive || reportModelSelect.disabled) return;
+    if (!transcript.value.trim()) {
+        activityMessage.textContent = "Enter a transcript before extracting fields.";
+        return;
+    }
+    // Each retry starts fresh, keeping only the transcript and call date.
+    Object.assign(callDetails, JSON.parse(jsonStringTemplate), {
+        "[datum]": callDetails["[datum]"],
+        "[datum / tijd]": callDetails["[datum / tijd]"],
+        "[transcriptie]": transcript.value,
+    });
+    showMissingDetails();
+    activityMessage.textContent = "Extracting fields...";
+    const warning = await fillReportFromTranscript(transcript.value);
+    showMissingDetails();
+    activityMessage.textContent = warning ?? "Fields extracted. Complete any remaining details.";
+});
 
 reportModelSelect.addEventListener("change", showModelDownload);
 
@@ -185,6 +205,10 @@ const jsonStringTemplate = `{
     "[afwijkingen of onzekerheden]": ""
   }`;
 
+transcript.addEventListener("input", function () {
+    callDetails["[transcriptie]"] = transcript.value;
+});
+
 const callDetails = JSON.parse(jsonStringTemplate);
 
 function showMissingDetails() {
@@ -233,72 +257,11 @@ function fillCallDate(date) {
 }
 
 async function fillReportFromTranscript(text) {
-    const selectedModel = reportModelSelect.value;
-
-    if (selectedModel === "none") {
-        return "Automatic filling is off. Complete the details manually";
-    }
-
-    const response = await fetch("/extract-report", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            transcript: text,
-            model: selectedModel,
-        }),
-    });
-
-    if (!response.ok) {
-        throw new Error("The report could not be filled. Please try again.");
-    }
-
-    const result = await response.json();
-
-    if (result.mode === "manual") {
-        throw new Error(
-            result.warning ||
-                "The report could not be filled. Please try again",
-        );
-    }
-
-    for (const [key, value] of Object.entries(result.fields)) {
-        if (!Object.hasOwn(callDetails, key)) {
-            continue;
-        }
-
-        if (typeof value !== "string") {
-            continue;
-        }
-
-        if (callDetails[key].trim() === "") {
-            callDetails[key] = value;
-        }
-    }
-
-    return result.warning ?? null;
-}
-
-async function processSavedRecording() {
-    if (processingCall || recordingSessionActive || savedRecording === null) {
-        return;
-    }
-
-    processingCall = true;
-    updateRetryButton();
-
-    startButton.disabled = true;
-    stopButton.disabled = true;
-    missingDetailsSubmitButton.disabled = true;
+    extractFieldsButton.disabled = true;
     reportModelSelect.disabled = true;
-    includeCaller.disabled = true;
-    microphoneSelect.disabled = true;
-    listMicrophonesButton.disabled = true;
-    setUploadControlsDisabled(true);
-
-    showState("processing");
-
+    startButton.disabled = true;
+    missingDetailsSubmitButton.disabled = true;
+    transcript.readOnly = true;
     try {
         //reuse successful live chunks, a transcription retry sends only the failed chunks
         if (savedTranscript === null || retryStep === "transcription") {
@@ -317,23 +280,11 @@ async function processSavedRecording() {
 
             callDetails["[transcriptie]"] = savedTranscript;
         }
-
-        retryStep = "report";
-
-        let message =
-            "Call processed. Fill in any remaining details, then click Generate.";
-
-        if (!savedCallHasSpeech()) {
-            message =
-                "No speech was transcribed. Complete the report manually.";
-        } else {
-            activityMessage.textContent =
-                "Filling the report using the saved transcript.";
-
-            const warning = await fillReportFromTranscript(savedTranscript);
-
-            if (warning !== null) {
-                message = warning;
+        const result = await response.json();
+        for (const [key, value] of Object.entries(result.fields)) {
+            // Keep call metadata and any details entered while extraction runs.
+            if (Object.hasOwn(callDetails, key) && typeof value === "string" && !callDetails[key].trim()) {
+                callDetails[key] = value;
             }
         }
 
@@ -369,13 +320,11 @@ async function processSavedRecording() {
 
         showError(message + " " + error.message);
     } finally {
-        showMissingDetails();
-
-        processingCall = false;
-        resetRecordingControls();
+        extractFieldsButton.disabled = false;
         reportModelSelect.disabled = false;
-
-        updateRetryButton();
+        startButton.disabled = recordingSessionActive;
+        missingDetailsSubmitButton.disabled = recordingSessionActive;
+        transcript.readOnly = false;
     }
 }
 

@@ -5,7 +5,6 @@ import shutil
 import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Literal
 
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -15,7 +14,7 @@ from pydantic import BaseModel, Field
 
 from docx_generator.docx_generator import convert_json_to_docx
 from transcript_to_json.report_extractor import extract_call_fields_from_transcript
-from transcript_to_json.report_schema import empty_report, to_report_fields
+from transcript_to_json.report_schema import ReportModel, empty_report, to_report_fields
 from whisper_demo import transcribe_audio_segments
 from speaker_transcript import merge_and_format_transcript
 from live_transcription import SPEAKER_LABELS, LiveTranscriber
@@ -26,13 +25,12 @@ static_directory = project_directory / "static"
 home_page = static_directory / "index.html"
 logger = logging.getLogger(__name__)
 
-# Report models in size order, with estimated VRAM usage in GB.
+# Qwen models that turn transcripts into report fields.
 report_models = {
-    "qwen3:0.6b": 2,
-    "qwen3:1.7b": 4,
-    "qwen3:4b": 6,
-    "qwen3:8b": 10,
-    "qwen3:14b": 14,
+    "qwen3:1.7b": {"label": "1.7B (fastest)", "memory": "~4 GB VRAM"},
+    "qwen3:4b": {"label": "4B (detailed, slower)", "memory": "~6 GB VRAM"},
+    "qwen3:8b": {"label": "8B (larger, slower)", "memory": "~10 GB VRAM"},
+    "qwen3:14b": {"label": "14B (best, slowest)", "memory": "~14 GB VRAM"},
 }
 
 # Disable the generated API documentation so the page needs no external assets.
@@ -241,7 +239,10 @@ def list_report_models():
     if default != "none" and default not in available:
         default = available[0] if available else "none"
     return {
-        "models": models,
+        "models": [
+            {"name": name, **details, "installed": name in installed}
+            for name, details in report_models.items()
+        ],
         "default": default,
         "total_vram": total_vram,
         "recommended": recommended,
@@ -258,7 +259,7 @@ def download_report_model(model: str):
 
 class ExtractReportRequest(BaseModel):
     transcript: str = Field(min_length=1)
-    model: Literal["qwen3:0.6b", "qwen3:1.7b", "qwen3:4b", "qwen3:8b", "qwen3:14b", "none"] | None = None
+    model: ReportModel | None = None
 
 
 @app.post("/extract-report")

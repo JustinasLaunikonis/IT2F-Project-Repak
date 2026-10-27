@@ -10,7 +10,7 @@
 
 <body>
     <main>
-        <h1>Repak live call transcription - Prototype 3</h1>
+        <h1>Repak live call transcription - <br>Proof of Concept</h1>
         <p>The local application is running.</p>
         <p>Record your microphone. The transcript appears while you record, and you can review the audio after you stop.
             You can also upload a WAV file that was recorded earlier.</p>
@@ -136,16 +136,18 @@
                     and the last part is added after you stop.
                 </p>
 
-                <textarea id="transcript" name="transcript" readonly
-                    placeholder="The transcript will appear here a few seconds after speech is recorded."></textarea>
-
-                <p id="live-lag" role="status" hidden></p>
-                <p id="live-error" class="live-error" role="alert" hidden></p>
+                <textarea id="transcript" name="transcript"
+                    placeholder="The transcript will appear here after recording stops and gets processed."></textarea>
 
                 <p id="transcription-info" hidden></p>
 
+                <button type="button" id="extract-fields-button">Extract Fields</button>
+                <p>Correct the transcript or choose another model, then click "Extract Fields" to start over.
+                    Previous report details, including manual entries, will be cleared.</p>
+
                 <div id="missing-details">
                     <h2>Missing details</h2>
+                    <h4>Only details that are not filled in by the inference model are present here</h4>
                     <div id="missing-details-form"></div>
                 </div>
                 <button type="button" id="missing-details-submit-button">Generate</button>
@@ -175,11 +177,10 @@
                 </div>
                 <div>
                     <label for="report-model-select">Interpretation model</label>
-                    <select id="report-model-select" aria-describedby="report-model-help" disabled>
+                    <select id="report-model-select" disabled>
                         <option value="none">Manual entry — no model needed</option>
                     </select>
                     <button id="download-report-model" type="button" hidden>Download model</button>
-                    <p id="report-model-help">Checking GPU memory…</p>
                 </div>
             </div>
         </div>
