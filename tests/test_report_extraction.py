@@ -192,7 +192,7 @@ def test_missing_nvidia_driver(monkeypatch):
 
 
 @pytest.mark.parametrize("total_vram, expected", [
-    (None, None), (2, None), (3, "qwen3:0.6b"),
+    (None, None), (2, None), (3, None), (5, "qwen3:1.7b"),
     (6.9, "qwen3:1.7b"), (7, "qwen3:4b"),
     (11, "qwen3:8b"), (15, "qwen3:14b"),
 ])

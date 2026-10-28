@@ -25,12 +25,12 @@ static_directory = project_directory / "static"
 home_page = static_directory / "index.html"
 logger = logging.getLogger(__name__)
 
-# Qwen models that turn transcripts into report fields.
+# Qwen models in size order, with labels and estimated VRAM usage in GB.
 report_models = {
-    "qwen3:1.7b": {"label": "1.7B (fastest)", "memory": "~4 GB VRAM"},
-    "qwen3:4b": {"label": "4B (detailed, slower)", "memory": "~6 GB VRAM"},
-    "qwen3:8b": {"label": "8B (larger, slower)", "memory": "~10 GB VRAM"},
-    "qwen3:14b": {"label": "14B (best, slowest)", "memory": "~14 GB VRAM"},
+    "qwen3:1.7b": {"label": "1.7B (fastest)", "memory": 4},
+    "qwen3:4b": {"label": "4B (detailed, slower)", "memory": 6},
+    "qwen3:8b": {"label": "8B (larger, slower)", "memory": 10},
+    "qwen3:14b": {"label": "14B (best, slowest)", "memory": 14},
 }
 
 # Disable the generated API documentation so the page needs no external assets.
@@ -225,8 +225,14 @@ def list_report_models():
     recommended = None
     models = []
     available = []
-    for name, memory in report_models.items():
-        models.append({"name": name, "memory": f"~{memory} GB VRAM", "installed": name in installed})
+    for name, details in report_models.items():
+        memory = details["memory"]
+        models.append({
+            "name": name,
+            "label": details["label"],
+            "memory": f"~{memory} GB VRAM",
+            "installed": name in installed,
+        })
         if name in installed:
             available.append(name)
         if total_vram and memory <= total_vram - 1:
@@ -239,10 +245,7 @@ def list_report_models():
     if default != "none" and default not in available:
         default = available[0] if available else "none"
     return {
-        "models": [
-            {"name": name, **details, "installed": name in installed}
-            for name, details in report_models.items()
-        ],
+        "models": models,
         "default": default,
         "total_vram": total_vram,
         "recommended": recommended,
