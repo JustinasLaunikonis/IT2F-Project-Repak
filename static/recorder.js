@@ -17,7 +17,48 @@ function stopLiveTimer(recording) {
     }
 }
 
-// Cut the samples recorded since the previous cut into one WAV chunk per source.
+const QUIET_PIECE_THRESHOLD = 300;
+const MAX_HELD_BACK_PIECES = 12;
+
+function averageLoudness(piece, startIndex, endIndex) {
+    let total = 0;
+    for (let index = startIndex; index < endIndex; index++) {
+        total += Math.abs(piece[index]);
+    }
+    return total / (endIndex - startIndex);
+}
+
+function isQuietPiece(piece) {
+    if (piece.length === 0) {
+        return false;
+    }
+
+    const lastQuarterStart = Math.floor(piece.length * 3 / 4);
+    if (averageLoudness(piece, lastQuarterStart, piece.length) >= QUIET_PIECE_THRESHOLD) {
+        return false;
+    }
+
+    return averageLoudness(piece, 0, piece.length) < QUIET_PIECE_THRESHOLD;
+}
+
+function findCutCount(newPieces, isFinal) {
+    if (isFinal) {
+        return newPieces.length;
+    }
+
+    let index = newPieces.length - 1;
+    let checked = 0;
+    while (index >= 0 && checked < MAX_HELD_BACK_PIECES) {
+        if (isQuietPiece(newPieces[index])) {
+            return index + 1;
+        }
+        index--;
+        checked++;
+    }
+
+    return newPieces.length;
+}
+
 // The start time comes from counted samples, so it matches the full WAV files.
 function emitLiveChunks(recording, isFinal) {
     if (recording.live === null) {
@@ -32,8 +73,11 @@ function emitLiveChunks(recording, isFinal) {
     for (const [speaker, chunks] of Object.entries(sources)) {
         const sent = recording.live.sent[speaker];
         const newChunks = chunks.slice(sent.chunkCount);
+        const cutCount = findCutCount(newChunks, isFinal);
+        const chunksToSend = newChunks.slice(0, cutCount);
+
         let sampleCount = 0;
-        for (const chunk of newChunks) {
+        for (const chunk of chunksToSend) {
             sampleCount += chunk.length;
         }
         if (sampleCount === 0) {
@@ -44,10 +88,10 @@ function emitLiveChunks(recording, isFinal) {
             speaker: speaker,
             startSeconds: sent.sampleCount / 16000,
             durationSeconds: sampleCount / 16000,
-            wav: new Blob([encodeWav(newChunks, 16000)], { type: "audio/wav" }),
+            wav: new Blob([encodeWav(chunksToSend, 16000)], { type: "audio/wav" }),
             isFinal: isFinal,
         };
-        sent.chunkCount = chunks.length;
+        sent.chunkCount += cutCount;
         sent.sampleCount += sampleCount;
 
         try {
@@ -247,7 +291,8 @@ function captureError(error, source) {
 }
 
 // liveOptions is optional: { onLiveChunk(chunk), chunkSeconds }. Every chunkSeconds the
-// new audio of each source is passed to onLiveChunk, and the rest once after stopping.
+// new audio of each source, up to the last short pause, is passed to onLiveChunk, and
+// the rest once after stopping.
 export async function startWavRecording(
     onUnexpectedStop,
     includeCaller = false,
