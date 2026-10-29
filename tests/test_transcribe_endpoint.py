@@ -42,8 +42,8 @@ def test_real_wav_decoding_without_a_whisper_model(monkeypatch, sample_rate, inc
 
 
 def test_wav_upload_return_speaker_transcript(monkeypatch):
-    def fake_transcribe_segments(audio_path):
-        if audio_path.endswith("harm.wav"):
+    def fake_transcribe_segments(audio_path, speaker, start_seconds, session_id, whole_recording=False):
+        if speaker == "harm":
             return {
                 "segments": [
                     {
@@ -69,8 +69,8 @@ def test_wav_upload_return_speaker_transcript(monkeypatch):
         }
 
     monkeypatch.setattr(
-        main,
-        "transcribe_audio_segments",
+        main.live_transcriber,
+        "transcribe_chunk",
         fake_transcribe_segments,
     )
 
@@ -125,7 +125,7 @@ def test_wav_upload_return_speaker_transcript(monkeypatch):
 
 def test_microphone_only_recording_still_works(monkeypatch):
     #return one example segment without loading whisper
-    def fake_transcribe_segments(audio_path):
+    def fake_transcribe_segments(audio_path, speaker, start_seconds, session_id, whole_recording=False):
         return {
             "segments": [
                 {
@@ -139,8 +139,8 @@ def test_microphone_only_recording_still_works(monkeypatch):
         }
 
     monkeypatch.setattr(
-        main,
-        "transcribe_audio_segments",
+        main.live_transcriber,
+        "transcribe_chunk",
         fake_transcribe_segments,
     )
 
@@ -216,12 +216,12 @@ def test_empty_wav_is_rejected():
 
 def test_transcription_failure_returns_readable_error(monkeypatch):
     #simulate whisper crashing while transcribing
-    def failing_transcribe_segments(audio_path):
+    def failing_transcribe_segments(audio_path, speaker, start_seconds, session_id, whole_recording=False):
         raise RuntimeError("model file is missing")
 
     monkeypatch.setattr(
-        main,
-        "transcribe_audio_segments",
+        main.live_transcriber,
+        "transcribe_chunk",
         failing_transcribe_segments,
     )
 
