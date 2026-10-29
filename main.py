@@ -3,6 +3,7 @@ import math
 import os
 import shutil
 import subprocess
+import uuid
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -15,7 +16,6 @@ from pydantic import BaseModel, Field
 from docx_generator.docx_generator import convert_json_to_docx
 from transcript_to_json.report_extractor import extract_call_fields_from_transcript
 from transcript_to_json.report_schema import ReportModel, empty_report, to_report_fields
-from whisper_demo import transcribe_audio_segments
 from speaker_transcript import merge_and_format_transcript
 from live_transcription import SPEAKER_LABELS, LiveTranscriber
 
@@ -88,14 +88,29 @@ def save_uploaded_wav(uploaded_file, destination):
         )
 
 
-def transcribe_saved_wav(audio_path, speaker):
-    #turn whisper failures into a readable error for the browser
+live_transcriber = LiveTranscriber()
+
+
+def recording_name(speaker_key):
+    if speaker_key == "harm":
+        return "microphone"
+    else:
+        return "caller"
+
+
+def transcribe_saved_wav(audio_path, speaker_key, session_id):
     try:
-        return transcribe_audio_segments(str(audio_path))
+        return live_transcriber.transcribe_chunk(
+            audio_path,
+            speaker_key,
+            0,
+            session_id,
+            whole_recording=True,
+        )
     except Exception as error:
         raise HTTPException(
             status_code=500,
-            detail=f"Transcribing the {speaker} recording failed: {error}",
+            detail=f"Transcribing the {recording_name(speaker_key)} recording failed: {error}",
         ) from error
 
 
@@ -104,6 +119,15 @@ def transcribe_uploaded_wav(
     harm: UploadFile = File(...),
     caller: UploadFile | None = File(None),
 ):
+    session_id = "upload-" + uuid.uuid4().hex
+
+    try:
+        return transcribe_upload_files(harm, caller, session_id)
+    finally:
+        live_transcriber.end_session(session_id)
+
+
+def transcribe_upload_files(harm, caller, session_id):
     #files inside this folder are removed automatically afterwards
     with TemporaryDirectory() as temporary_directory:
         temporary_path = Path(temporary_directory)
@@ -116,12 +140,11 @@ def transcribe_uploaded_wav(
         )
 
         #transcribe harm's mic recording
-        harm_result = transcribe_saved_wav(harm_path, "microphone")
+        harm_result = transcribe_saved_wav(harm_path, "harm", session_id)
         harm_segments = harm_result["segments"]
 
         caller_segments = []
 
-        #transcrive caller.wav if caller audio was recorded
         if caller is not None:
             caller_path = temporary_path / "caller.wav"
 
@@ -130,7 +153,7 @@ def transcribe_uploaded_wav(
                 caller_path
             )
 
-            caller_result = transcribe_saved_wav(caller_path, "caller")
+            caller_result = transcribe_saved_wav(caller_path, "caller", session_id)
             caller_segments = caller_result["segments"]
 
         #label speakers and put all segments in spoken order
@@ -152,10 +175,6 @@ def transcribe_uploaded_wav(
             }
 
         return transcript_result
-
-
-#keeps one Whisper model loaded while a call is being recorded
-live_transcriber = LiveTranscriber()
 
 
 @app.post("/transcribe-chunk")

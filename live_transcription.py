@@ -1,8 +1,9 @@
 """Transcribe short audio chunks while a call is still being recorded.
 
 whisper_demo.transcribe_audio_segments loads and unloads Whisper for every file.
-That is fine for one upload after the call, but far too slow for a chunk every few
-seconds, so this module keeps one model loaded until the call ends or goes idle.
+That is far too slow for a chunk every few seconds, so this module keeps one model
+loaded until the call ends or goes idle. Uploaded files also use this module, so the
+Harm and Caller files of one upload share the same loaded model.
 """
 
 import os
@@ -82,7 +83,8 @@ class LiveTranscriber:
         self.use_idle_timer = use_idle_timer
         self.idle_timer = None
 
-    def transcribe_chunk(self, audio_path, speaker, start_seconds, session_id):
+    def transcribe_chunk(self, audio_path, speaker, start_seconds, session_id, whole_recording=False):
+        #whole_recording is True for an uploaded file, which gets only one language detection
         #voice detection does not need the Whisper model, so it runs outside the lock
         audio, speech_clips = whisper_demo.find_speech(str(audio_path))
 
@@ -101,7 +103,7 @@ class LiveTranscriber:
                 language = session["languages"].get(speaker)
             else:
                 segments, language = self._transcribe_speech(
-                    session, speaker, audio, speech_clips
+                    session, speaker, audio, speech_clips, whole_recording
                 )
 
             result = {
@@ -119,6 +121,9 @@ class LiveTranscriber:
                     "end": round(segment["end"] + start_seconds, 3),
                     "text": segment["text"],
                 })
+
+            #count idle time from the end of the work, a long uploaded file can take minutes
+            self.last_used = self.clock()
 
         self._schedule_idle_check()
         return result
@@ -138,12 +143,12 @@ class LiveTranscriber:
                 self.sessions.clear()
                 self._release()
 
-    def _transcribe_speech(self, session, speaker, audio, speech_clips):
+    def _transcribe_speech(self, session, speaker, audio, speech_clips, whole_recording):
         while True:
             try:
                 model = self._load_model()
                 language, language_update = self._choose_language(
-                    model, session, speaker, audio, speech_clips
+                    model, session, speaker, audio, speech_clips, whole_recording
                 )
                 segments = self._run_whisper(model, audio, speech_clips, language)
                 break
@@ -164,7 +169,7 @@ class LiveTranscriber:
 
         return segments, language
 
-    def _choose_language(self, model, session, speaker, audio, speech_clips):
+    def _choose_language(self, model, session, speaker, audio, speech_clips, whole_recording):
         selected_language = os.environ.get("WHISPER_LANGUAGE", "").strip().lower()
         if selected_language:
             return selected_language, None
@@ -186,6 +191,9 @@ class LiveTranscriber:
 
         if language is not None and probability >= LANGUAGE_LOCK_PROBABILITY:
             return language, {"lock": True, "attempts": attempts}
+
+        if whole_recording and language is not None:
+            return language, None
 
         #not sure yet: use English for this chunk and try again on the next one
         lock_default = attempts >= LANGUAGE_DETECTION_CHUNKS
